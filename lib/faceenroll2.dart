@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,12 +9,21 @@ import 'package:provider/provider.dart';
 import 'dart:developer';
 import 'package:userinterface/faceenroll.dart';
 import 'package:userinterface/providers/auth_provider.dart';
+import 'package:camera/camera.dart';
 
+// ignore: must_be_immutable
 class EnrollmentPage extends StatefulWidget {
-  // final String imagePath;
-  final List<String> imagePaths;
+  List<String> imagePaths;
 
-  const EnrollmentPage({super.key, required this.imagePaths});
+  final Map<String, dynamic>? studentData;
+  final bool isEditMode;
+
+  EnrollmentPage({
+    super.key,
+    required this.imagePaths,
+    this.studentData,
+    this.isEditMode = false,
+  });
 
   @override
   State<EnrollmentPage> createState() => _EnrollmentPageState();
@@ -22,7 +32,10 @@ class EnrollmentPage extends StatefulWidget {
 class _EnrollmentPageState extends State<EnrollmentPage> {
   String? selectedSubjectId;
   List<Map<String, dynamic>> subjects = [];
+  List<Map<String, dynamic>> courses = [];
+  String? selectedCourseId;
   int _currentImageIndex = 0;
+  late List<String> imagePaths;
 
   final TextEditingController nameController = TextEditingController();
   final TextEditingController idController = TextEditingController();
@@ -31,7 +44,15 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
   @override
   void initState() {
     super.initState();
-    // fetchSubjects();
+    fetchCourses();
+
+    imagePaths = List.from(widget.imagePaths);
+
+    if (widget.isEditMode && widget.studentData != null) {
+      nameController.text = widget.studentData!['name'] ?? '';
+      idController.text = widget.studentData!['student_card_id'] ?? '';
+      selectedCourseId = widget.studentData!['course_id']?.toString();
+    }
   }
 
   @override
@@ -42,11 +63,48 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
     super.dispose();
   }
 
+  Future<void> fetchCourses() async {
+    final baseUrl = dotenv.env['BASE_URL'] ?? '';
+    final url = Uri.parse('$baseUrl/courses');
+
+    try {
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        final loadedCourses = List<Map<String, dynamic>>.from(data);
+
+        setState(() {
+          courses = loadedCourses;
+        });
+
+        if (widget.isEditMode && widget.studentData != null) {
+          final courseId = widget.studentData!['course_id']?.toString();
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final match = loadedCourses.any(
+              (c) => c['id'].toString() == courseId,
+            );
+
+            if (match) {
+              setState(() {
+                selectedCourseId = courseId;
+              });
+            }
+          });
+        }
+      }
+    } catch (e) {
+      log("Error fetching courses: $e");
+    }
+  }
+
   // ENROLL STUDENT FUNCTION
   Future<void> enrollStudent() async {
     if (nameController.text.isEmpty ||
         idController.text.isEmpty ||
-        courseController.text.isEmpty) {
+        selectedCourseId == null) {
       _showAnimatedDialog(
         context: context,
         icon: Icons.error_outline_rounded,
@@ -73,12 +131,12 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
 
       request.fields["name"] = nameController.text;
       request.fields["student_card_id"] = idController.text;
-      request.fields["course"] = courseController.text;
+      request.fields["course_id"] = selectedCourseId ?? '';
       request.fields["primary_index"] = _currentImageIndex.toString();
       request.fields["user_id"] = userId.toString();
 
-      if (widget.imagePaths.isNotEmpty) {
-        for (var imagePath in widget.imagePaths) {
+      if (imagePaths.isNotEmpty) {
+        for (var imagePath in imagePaths) {
           final file = File(imagePath);
           log("Sending file: $imagePath, exists: ${file.existsSync()}, size: ${file.existsSync() ? file.lengthSync() : 0} bytes");
 
@@ -143,6 +201,100 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
           onPressed: () => Navigator.of(context).pop(),
         );
       }
+    }
+  }
+
+  Future<void> updateStudent() async {
+    if (nameController.text.isEmpty ||
+        idController.text.isEmpty ||
+        selectedCourseId == null) {
+      _showAnimatedDialog(
+        context: context,
+        icon: Icons.error_outline_rounded,
+        iconColor: Colors.red,
+        title: "Validation Error",
+        message: "Please fill in all required fields.",
+        buttonText: "Close",
+        onPressed: () => Navigator.of(context).pop(),
+      );
+      return;
+    }
+
+    try {
+      _showLoadingDialog(context);
+
+      final baseUrl = dotenv.env['BASE_URL'] ?? '';
+      final studentId = widget.studentData!['id'];
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final userId = authProvider.userId;
+
+      var uri = Uri.parse('$baseUrl/update-student/$studentId');
+      var request = http.MultipartRequest("PUT", uri);
+
+      // 1️⃣ TEXT FIELDS
+      request.fields["name"] = nameController.text;
+      request.fields["student_card_id"] = idController.text;
+      request.fields["course_id"] = selectedCourseId ?? '';
+      request.fields["user_id"] = userId.toString();
+
+      // 2️⃣ PRIMARY FACE INDEX
+      request.fields["primary_index"] = _currentImageIndex.toString();
+
+      // 3️⃣ IMAGES (IMPORTANT)
+      for (var imagePath in imagePaths) {
+        final file = File(imagePath);
+
+        if (file.existsSync()) {
+          request.files.add(
+            await http.MultipartFile.fromPath(
+              "images",
+              imagePath,
+              filename: path.basename(imagePath),
+            ),
+          );
+        }
+      }
+
+      // 4️⃣ SEND REQUEST
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      if (mounted) _hideLoadingDialog(context);
+
+      if (response.statusCode == 200) {
+        _showAnimatedDialog(
+          // ignore: use_build_context_synchronously
+          context: context,
+          icon: Icons.check_circle_outline,
+          iconColor: const Color(0xFF00B38A),
+          title: "Updated",
+          message: "Student updated successfully",
+          buttonText: "OK",
+          onPressed: () {
+            Navigator.of(context).pop(); // close dialog
+
+            Future.delayed(const Duration(milliseconds: 100), () {
+              // ignore: use_build_context_synchronously
+              Navigator.of(context).pop(true); // go back to update list page
+            });
+          },
+        );
+      } else {
+        _showAnimatedDialog(
+          // ignore: use_build_context_synchronously
+          context: context,
+          icon: Icons.error_outline,
+          iconColor: Colors.red,
+          title: "Failed",
+          message: response.body,
+          buttonText: "Close",
+          onPressed: () => Navigator.pop(context),
+        );
+      }
+    } catch (e, stack) {
+      if (mounted) _hideLoadingDialog(context);
+      log("Update error: $e", stackTrace: stack);
     }
   }
 
@@ -225,11 +377,7 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.black),
                   onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const Enrollment()),
-                    );
+                    Navigator.pop(context);
                   },
                 ),
                 const SizedBox(height: 0),
@@ -242,33 +390,102 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
                       shape: BoxShape.circle,
                       color: Color(0xFF1565C0),
                     ),
-                    child: widget.imagePaths.isEmpty
+                    child: imagePaths.isEmpty
                         ? const Icon(Icons.person,
                             color: Colors.white, size: 100)
-                        : ClipOval(
-                            child: PageView.builder(
-                              itemCount: widget.imagePaths.length,
-                              onPageChanged: (index) {
-                                setState(() {
-                                  _currentImageIndex = index;
-                                });
-                              },
-                              itemBuilder: (context, index) {
-                                return Image.file(
-                                  File(widget.imagePaths[index]),
-                                  fit: BoxFit.cover,
-                                );
-                              },
-                            ),
+                        : Stack(
+                            children: [
+                              ClipOval(
+                                child: PageView.builder(
+                                  itemCount: imagePaths.length,
+                                  onPageChanged: (index) {
+                                    setState(() {
+                                      _currentImageIndex = index;
+                                    });
+                                  },
+                                  itemBuilder: (context, index) {
+                                    final imagePath = imagePaths[index];
+
+                                    if (imagePath.startsWith('http')) {
+                                      return Image.network(
+                                        imagePath,
+                                        fit: BoxFit.cover,
+                                      );
+                                    } else {
+                                      return Image.file(
+                                        File(imagePath),
+                                        fit: BoxFit.cover,
+                                      );
+                                    }
+                                  },
+                                ),
+                              ),
+
+                              // ⭐ ADD BUTTON (only edit mode)
+                              if (widget.isEditMode)
+                                Positioned(
+                                  right: 20,
+                                  bottom: 10,
+                                  child: GestureDetector(
+                                    onTap: () async {
+                                      final cameras = await availableCameras();
+
+                                      final result = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => ScannerScreen(
+                                            cameras: cameras,
+                                            isEditMode: true,
+                                            studentId: widget.studentData!['id']
+                                                .toString(),
+                                          ),
+                                        ),
+                                      );
+
+                                      if (result != null && result is Map) {
+                                        if (result["mode"] == "add_face") {
+                                          List<String> newImages =
+                                              List<String>.from(
+                                                  result["images"]);
+
+                                          setState(() {
+                                            imagePaths.insertAll(0, newImages);
+                                          });
+                                        }
+                                      }
+                                    },
+                                    child: Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF1565C0),
+                                        shape: BoxShape.circle,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black26,
+                                            blurRadius: 8,
+                                            offset: Offset(0, 2),
+                                          )
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.add,
+                                        size: 26,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 // 🔵 Swipe indicator dots
-                if (widget.imagePaths.length > 1)
+                if (imagePaths.length > 1)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(widget.imagePaths.length, (index) {
+                    children: List.generate(imagePaths.length, (index) {
                       return Container(
                         margin: const EdgeInsets.symmetric(horizontal: 4),
                         width: _currentImageIndex == index ? 12 : 8,
@@ -295,9 +512,33 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
                     child: _buildTextField("Enter student ID", idController)),
                 const SizedBox(height: 10),
                 SizedBox(
-                    height: 50,
-                    child: _buildTextField(
-                        "Enter student course", courseController)),
+                  height: 50,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF5F5F5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        isExpanded: true,
+                        hint: const Text("Select course"),
+                        value: selectedCourseId,
+                        items: courses.map((course) {
+                          return DropdownMenuItem<String>(
+                            value: course['id'].toString(),
+                            child: Text(course['short_name'] ?? 'Unknown'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedCourseId = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 15),
                 // Dropdown (Subjects) HIDDEN!
                 Visibility(
@@ -331,8 +572,7 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
                     ),
                   ),
                 ),
-                const SizedBox(
-                    height: 20),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -355,9 +595,9 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: enrollStudent,
-                child: const Text(
-                  "Enroll",
+                onPressed: widget.isEditMode ? updateStudent : enrollStudent,
+                child: Text(
+                  widget.isEditMode ? "Update Student" : "Enroll",
                   style: TextStyle(
                     fontSize: 18,
                     color: Colors.white,
@@ -382,7 +622,7 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
               if (index == 0) {
                 Navigator.pushReplacementNamed(context, '/dashboard');
               } else if (index == 1) {
-                // Stay on Enrollment
+                Navigator.pushReplacementNamed(context, '/enroll');
               } else if (index == 2) {
                 Navigator.pushReplacementNamed(context, '/reports');
               } else if (index == 3) {

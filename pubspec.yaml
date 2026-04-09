@@ -30,6 +30,7 @@ dependencies:
   timezone: ^0.9.2
   image: ^4.5.4
   flutter_exif_rotation: ^0.5.1
+  cached_network_image: ^3.2.3
 
  
 dev_dependencies:

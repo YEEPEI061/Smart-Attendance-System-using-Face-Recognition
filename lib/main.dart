@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:userinterface/enrollment.dart';
 import 'package:userinterface/login.dart';
 import 'package:userinterface/signup.dart';
 import 'package:userinterface/faceenroll.dart';
@@ -15,6 +16,7 @@ import 'package:userinterface/sa_users.dart';
 import 'package:userinterface/sa_settings.dart';
 import 'package:userinterface/sa_logs.dart';
 import 'package:userinterface/sa_changepsw.dart';
+import 'package:userinterface/update_student.dart';
 
 Future<void> main() async {
   await dotenv.load(fileName: ".env");
@@ -54,7 +56,9 @@ class SmartAttendanceApp extends StatelessWidget {
       routes: {
         '/login': (context) => const LoginPage(),
         '/dashboard': (context) => const DashboardPage(),
-        '/enroll': (context) => const Enrollment(),
+        '/enroll': (context) => const EnrollmentChoicePage(),
+        '/enroll_face': (context) => const Enrollment(),
+        '/update_student': (context) => const UpdateStudentPage(),
         '/reports': (context) => const AttendanceReportPage(),
         '/settings': (context) => const AccountSettingsPage(),
         "/sa/login": (context) => const SuperAdminLoginPage(),
@@ -62,7 +66,8 @@ class SmartAttendanceApp extends StatelessWidget {
         "/sa/logs": (context) => const SuperAdminLogsPage(),
         "/sa/users": (context) => const SuperAdminUsersPage(),
         "/sa/settings": (context) => const SuperAdminSettingsPage(),
-        "/sa/users/change-password": (context) => const SuperAdminChangePasswordPage(),
+        "/sa/users/change-password": (context) =>
+            const SuperAdminChangePasswordPage(),
       },
       home: const HomePage(),
     );

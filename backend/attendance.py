@@ -85,13 +85,14 @@ def get_attendance():
                 s.id AS student_id,
                 s.name,
                 s.student_card_id,
-                s.course,
+                c.short_name AS course,
                 s.face_image_url,
                 DATE_FORMAT(a.created_at, '%h:%i %p') AS time,
                 a.date,
                 COALESCE(a.status, 'Absent') AS status
             FROM enrollments e
             JOIN students s ON e.student_id = s.id
+            LEFT JOIN courses c ON s.course_id = c.id
             LEFT JOIN attendance a 
                 ON s.id = a.student_id 
                 AND a.class_id = %s
@@ -110,7 +111,7 @@ def get_attendance():
         for r in records:
             if r.get("face_image_url"):
                 image_path = str(r["face_image_url"]).replace("\\", "/").lstrip("/")
-                r["face_image_url"] = f"{BASE_URL.rstrip('/')}/{image_path}"
+                r["face_image_url"] = f"{request.host_url.rstrip('/')}/{image_path}"
 
         print("[DEBUG] Attendance records:", records, flush=True)
 

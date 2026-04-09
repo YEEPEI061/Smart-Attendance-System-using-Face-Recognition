@@ -1,4 +1,4 @@
-import 'dart:io'; 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
@@ -53,7 +53,16 @@ class _EnrollmentState extends State<Enrollment> {
 class ScannerScreen extends StatefulWidget {
   final List<CameraDescription> cameras;
 
-  const ScannerScreen({super.key, required this.cameras});
+  // NEW 👇
+  final bool isEditMode;
+  final String? studentId;
+
+  const ScannerScreen({
+    super.key,
+    required this.cameras,
+    this.isEditMode = false,
+    this.studentId,
+  });
 
   @override
   _ScannerScreenState createState() => _ScannerScreenState();
@@ -76,7 +85,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   double _currentZoom = 1.0;
   double _minZoom = 1.0;
-  double _maxZoom = 1.0;  
+  double _maxZoom = 1.0;
   double _baseZoom = 1.0;
 
   @override
@@ -104,7 +113,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
       _maxZoom = _maxZoom.clamp(1.0, 3.0);
       _currentZoom = _minZoom;
 
-      await _controller!.setFlashMode(flashOn ? FlashMode.torch : FlashMode.off);
+      await _controller!
+          .setFlashMode(flashOn ? FlashMode.torch : FlashMode.off);
 
       if (mounted) {
         setState(() {
@@ -125,7 +135,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
   void _switchCamera() async {
     if (widget.cameras.length < 2) return;
 
-    final currentLensDirection = widget.cameras[currentCameraIndex].lensDirection;
+    final currentLensDirection =
+        widget.cameras[currentCameraIndex].lensDirection;
     final newIndex = widget.cameras.indexWhere((camera) =>
         camera.lensDirection ==
         (currentLensDirection == CameraLensDirection.front
@@ -143,23 +154,23 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   void _capturePhoto() async {
-  if (!_isCameraReady || _controller == null) return;
+    if (!_isCameraReady || _controller == null) return;
 
-  try {
-    final XFile image = await _controller!.takePicture();
+    try {
+      final XFile image = await _controller!.takePicture();
 
-    final fixedImage =
-        await FlutterExifRotation.rotateImage(path: image.path);
+      final fixedImage =
+          await FlutterExifRotation.rotateImage(path: image.path);
 
-    setState(() {
-      _capturedImages.add(XFile(fixedImage.path));
-      _currentPreviewIndex = _capturedImages.length - 1;
-      _isAddingPhoto = false;
-    });
-  } catch (e) {
-    debugPrint("Error capturing photo: $e");
+      setState(() {
+        _capturedImages.add(XFile(fixedImage.path));
+        _currentPreviewIndex = _capturedImages.length - 1;
+        _isAddingPhoto = false;
+      });
+    } catch (e) {
+      debugPrint("Error capturing photo: $e");
+    }
   }
-}
 
   Future<void> _safeNavigate(String routeName) async {
     if (_controller != null && _controller!.value.isInitialized) {
@@ -177,46 +188,76 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   void _pickMultipleImages() async {
-  try {
-    final picker = ImagePicker();
-    final List<XFile> images = await picker.pickMultiImage();
+    try {
+      final picker = ImagePicker();
+      final List<XFile> images = await picker.pickMultiImage();
 
-    if (images.isNotEmpty && mounted) {
+      if (images.isNotEmpty && mounted) {
+        List<XFile> fixedImages = [];
 
-      List<XFile> fixedImages = [];
+        for (var img in images) {
+          final fixed = await FlutterExifRotation.rotateImage(path: img.path);
+          fixedImages.add(XFile(fixed.path));
+        }
 
-      for (var img in images) {
-        final fixed = await FlutterExifRotation.rotateImage(path: img.path);
-        fixedImages.add(XFile(fixed.path));
+        setState(() {
+          _capturedImages = fixedImages;
+          _currentPreviewIndex = 0;
+        });
       }
-
-      setState(() {
-        _capturedImages = fixedImages;
-        _currentPreviewIndex = 0;
-      });
+    } catch (e) {
+      debugPrint("Error picking multiple images: $e");
     }
-  } catch (e) {
-    debugPrint("Error picking multiple images: $e");
   }
-}
+
+  // void _confirmImage() async {
+  //   if (_capturedImages.isEmpty) return;
+
+  //   if (_controller != null && _controller!.value.isInitialized) {
+  //     await _controller!.dispose();
+  //     _controller = null;
+  //   }
+
+  //   setState(() => _isCameraReady = false);
+  //   await Future.delayed(const Duration(milliseconds: 300));
+
+  //   if (!mounted) return;
+
+  //   Navigator.pushReplacement(
+  //     context,
+  //     MaterialPageRoute(
+  //       builder: (context) => EnrollmentPage(
+  //         imagePaths: _capturedImages.map((e) => e.path).toList(),
+  //         isEditMode: false,
+  //       ),
+  //     ),
+  //   );
+  // }
 
   void _confirmImage() async {
     if (_capturedImages.isEmpty) return;
 
-    if (_controller != null && _controller!.value.isInitialized) {
-      await _controller!.dispose();
-      _controller = null;
-    }
-
-    setState(() => _isCameraReady = false);
-    await Future.delayed(const Duration(milliseconds: 300));
+    final images = _capturedImages.map((e) => e.path).toList();
 
     if (!mounted) return;
+
+    // 🔥 CASE 1: EDIT MODE → ADD FACE ONLY
+    if (widget.isEditMode) {
+      Navigator.pop(context, {
+        "mode": "add_face",
+        "student_id": widget.studentId,
+        "images": images,
+      });
+      return;
+    }
+
+    // 🔥 CASE 2: NEW ENROLLMENT
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => EnrollmentPage(
           imagePaths: _capturedImages.map((e) => e.path).toList(),
+          isEditMode: false,
         ),
       ),
     );
@@ -269,12 +310,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
         unselectedFontSize: 12,
         selectedIconTheme: const IconThemeData(size: 24),
         unselectedIconTheme: const IconThemeData(size: 24),
-
         onTap: (index) {
           if (index == 0) {
             Navigator.pushReplacementNamed(context, '/dashboard');
           } else if (index == 1) {
-            // Stay on Enrollment
+            Navigator.pushReplacementNamed(context, '/enroll');
           } else if (index == 2) {
             Navigator.pushReplacementNamed(context, '/reports');
           } else if (index == 3) {
@@ -316,8 +356,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
           children: [
             // CLOSE BUTTON
             GestureDetector(
-              onTap: () => _safeNavigate('/dashboard'),
-              child: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+              onTap: () => {Navigator.pop(context)},
+              child: const Icon(Icons.close_rounded,
+                  color: Colors.white, size: 28),
             ),
             Row(
               children: [
@@ -332,7 +373,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 const SizedBox(width: 12),
                 GestureDetector(
                   onTap: () => setState(() => showSettings = !showSettings),
-                  child: const Icon(Icons.more_vert_rounded, color: Colors.white, size: 26),
+                  child: const Icon(Icons.more_vert_rounded,
+                      color: Colors.white, size: 26),
                 ),
               ],
             ),
@@ -343,9 +385,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Widget _buildCameraPreview() {
-    if (!_isCameraReady || _controller == null || !_controller!.value.isInitialized) {
-    return Container(color: Colors.black);
-  }
+    if (!_isCameraReady ||
+        _controller == null ||
+        !_controller!.value.isInitialized) {
+      return Container(color: Colors.black);
+    }
 
     return GestureDetector(
       // Pinch to zoom
@@ -355,7 +399,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
       onScaleUpdate: (details) async {
         if (_controller == null || !_controller!.value.isInitialized) return;
-        if (_controller!.description.lensDirection == CameraLensDirection.front) return;
+        if (_controller!.description.lensDirection == CameraLensDirection.front)
+          return;
 
         double newZoom = _baseZoom * details.scale;
         newZoom = newZoom.clamp(_minZoom, _maxZoom);
@@ -384,7 +429,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
             )
           else
             Container(color: Colors.grey[200]),
-
           if (showGrid)
             IgnorePointer(
               child: CustomPaint(
@@ -392,14 +436,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 painter: GridPainter(),
               ),
             ),
-
           IgnorePointer(
             child: CustomPaint(
               size: Size.infinite,
               painter: FaceOutlinePainter(),
             ),
           ),
-
           if (showSettings) _buildSettingsPanel(),
         ],
       ),
@@ -436,10 +478,15 @@ class _ScannerScreenState extends State<ScannerScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            Container(height: 1, color: Colors.white, margin: const EdgeInsets.only(bottom: 5)),
+            Container(
+                height: 1,
+                color: Colors.white,
+                margin: const EdgeInsets.only(bottom: 5)),
             const SizedBox(height: 5),
-            _buildCustomSwitch("Grid", showGrid, (v) => setState(() => showGrid = v)),
-            _buildCustomSwitch("Sound", soundOn, (v) => setState(() => soundOn = v)),
+            _buildCustomSwitch(
+                "Grid", showGrid, (v) => setState(() => showGrid = v)),
+            _buildCustomSwitch(
+                "Sound", soundOn, (v) => setState(() => soundOn = v)),
           ],
         ),
       ),
@@ -496,7 +543,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const Icon(Icons.photo_library_rounded, color: Colors.white, size: 28),
+                  const Icon(Icons.photo_library_rounded,
+                      color: Colors.white, size: 28),
                 ],
               ),
             ),
@@ -517,7 +565,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       shape: BoxShape.circle,
                     ),
                   ),
-                  const Icon(Icons.cameraswitch_rounded, color: Colors.white, size: 30),
+                  const Icon(Icons.cameraswitch_rounded,
+                      color: Colors.white, size: 30),
                 ],
               ),
             ),
@@ -532,7 +581,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
       children: [
         PageView.builder(
           itemCount: _capturedImages.length,
-          onPageChanged: (index) => setState(() => _currentPreviewIndex = index),
+          onPageChanged: (index) =>
+              setState(() => _currentPreviewIndex = index),
           itemBuilder: (context, index) {
             return SizedBox.expand(
               child: Image.file(
@@ -547,7 +597,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
           left: 16,
           child: GestureDetector(
             onTap: _retakeImage,
-            child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 28),
+            child: const Icon(Icons.arrow_back_rounded,
+                color: Colors.white, size: 28),
           ),
         ),
         if (_capturedImages.length > 1)
@@ -556,7 +607,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
             right: 16,
             child: Text(
               "${_currentPreviewIndex + 1} / ${_capturedImages.length}",
-              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600),
             ),
           ),
         Positioned(
@@ -582,7 +636,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 SizedBox(height: 5),
                 Text(
                   "Add",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -599,7 +654,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 SizedBox(height: 5),
                 Text(
                   "Retake",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -616,7 +672,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 SizedBox(height: 5),
                 Text(
                   "Confirm",
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700),
                 ),
               ],
             ),
@@ -626,7 +683,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
     );
   }
 
-  Widget _buildCustomSwitch(String title, bool value, Function(bool) onChanged) {
+  Widget _buildCustomSwitch(
+      String title, bool value, Function(bool) onChanged) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -662,8 +720,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
   @override
   void dispose() {
     if (_controller != null && _controller!.value.isInitialized) {
-    _controller!.dispose();
-  }
+      _controller!.dispose();
+    }
     _controller = null;
     super.dispose();
   }
@@ -680,8 +738,10 @@ class GridPainter extends CustomPainter {
     double stepY = size.height / 3;
 
     for (int i = 1; i < 3; i++) {
-      canvas.drawLine(Offset(stepX * i, 0), Offset(stepX * i, size.height), linePaint);
-      canvas.drawLine(Offset(0, stepY * i), Offset(size.width, stepY * i), linePaint);
+      canvas.drawLine(
+          Offset(stepX * i, 0), Offset(stepX * i, size.height), linePaint);
+      canvas.drawLine(
+          Offset(0, stepY * i), Offset(size.width, stepY * i), linePaint);
     }
   }
 
