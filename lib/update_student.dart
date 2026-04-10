@@ -148,8 +148,7 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
   }
 
   void _showFilterPopup(BuildContext iconContext) {
-    final RenderBox renderBox =
-        iconContext.findRenderObject() as RenderBox;
+    final RenderBox renderBox = iconContext.findRenderObject() as RenderBox;
 
     final Offset offset = renderBox.localToGlobal(Offset.zero);
 
@@ -264,6 +263,252 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
     );
   }
 
+  void _showDeleteStudentDialog(int studentId, String name) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 🔴 Icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFEBEE),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.delete_rounded,
+                  color: Color(0xFFEA324C),
+                  size: 40,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              const Text(
+                "Delete Student",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 15,
+                    height: 1.5,
+                  ),
+                  children: [
+                    const TextSpan(text: "Are you sure you want to delete\n"),
+                    TextSpan(
+                      text: name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const TextSpan(text: "?\nThis action cannot be undone."),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              Row(
+                children: [
+                  // ❌ Cancel
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: const BorderSide(color: Color(0xFFE0E0E0)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        "Cancel",
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
+
+                  // 🗑 Confirm Delete
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        deleteStudent(studentId);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFEA324C),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: const Text(
+                        "Delete",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> deleteStudent(int studentId) async {
+    final baseUrl = dotenv.env['BASE_URL'] ?? '';
+
+    // 🔵 SHOW LOADING DIALOG
+    showDialog(
+      context: context,
+      barrierDismissible: false, // ❌ cannot close
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/update/students/$studentId'),
+      );
+
+      // 🔴 CLOSE LOADING
+      Navigator.pop(context);
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Student deleted successfully")),
+        );
+
+        fetchStudents(); // 🔥 refresh list
+      } else {
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Delete failed: ${response.body}")),
+        );
+      }
+    } catch (e) {
+      // ignore: use_build_context_synchronously
+      Navigator.pop(context);
+
+      // ignore: use_build_context_synchronously
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Something went wrong")),
+      );
+    }
+  }
+
+  void _showTipsPopup() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 💡 Icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE3F2FD),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lightbulb_outline,
+                  color: Color(0xFF1565C0),
+                  size: 40,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              const Text(
+                "Tips",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              const Text(
+                "• 👆 Tap a student to edit\n"
+                "• 🗑 Long press a student to delete\n"
+                "• 🔍 Use filter to narrow results",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                  height: 1.6,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ✅ Close button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565C0),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    "Got it",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilterItem(String text, bool selected, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
@@ -301,6 +546,16 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.black),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          Builder(
+            builder: (iconContext) {
+              return IconButton(
+                icon: const Icon(Icons.info_outline, color: Color(0xFF9E9E9E)),
+                onPressed: () => _showTipsPopup(),
+              );
+            },
+          ),
+        ],
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -334,7 +589,8 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
                   Expanded(
                     child: ListView(
                       children: (groupedStudents.entries.toList()
-                            ..sort((a, b) => a.key.toString().compareTo(b.key.toString())))
+                            ..sort((a, b) =>
+                                a.key.toString().compareTo(b.key.toString())))
                           .asMap()
                           .entries
                           .map((entry) {
@@ -367,7 +623,8 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
                                             Icons.filter_alt_rounded,
                                             color: Color(0xFF1565C0),
                                           ),
-                                          onPressed: () => _showFilterPopup(iconContext),
+                                          onPressed: () =>
+                                              _showFilterPopup(iconContext),
                                         );
                                       },
                                     )
@@ -399,6 +656,12 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
                                     if (result == true) {
                                       fetchStudents();
                                     }
+                                  },
+                                  onLongPress: () {
+                                    _showDeleteStudentDialog(
+                                      student['id'],
+                                      student['name'] ?? '',
+                                    );
                                   },
                                   child: Container(
                                     height: 78,

@@ -155,7 +155,89 @@ class _AttendanceState extends State<Attendance> {
     );
   }
 
+  void _showTipsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 💡 Icon
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE3F2FD),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.lightbulb_outline,
+                  color: Color(0xFF1565C0),
+                  size: 40,
+                ),
+              ),
 
+              const SizedBox(height: 20),
+
+              const Text(
+                "Tips",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              const Text(
+                "• 📷 Tap to scan attendance\n"
+                "• 👆 Long press to mark manually\n"
+                "• ⬅️ Swipe left to remove\n"
+                "• 🔍 Filter to sort",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                  height: 1.6,
+                ),
+              ),
+
+              const SizedBox(height: 28),
+
+              // ✅ Close button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565C0),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    "Got it",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildSelectionRow({
     required String label,
@@ -324,10 +406,6 @@ class _AttendanceState extends State<Attendance> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
-                      // onPressed: () {
-                      //   Navigator.pop(context);
-                      //   updateManualAttendance(studentId, newStatus);
-                      // },
                       onPressed: () {
                         Navigator.pop(context);
 
@@ -578,6 +656,12 @@ class _AttendanceState extends State<Attendance> {
             Navigator.pop(context);
           },
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline, color: Color(0xFF9E9E9E)),
+            onPressed: () => _showTipsDialog(),
+          ),
+        ],
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
