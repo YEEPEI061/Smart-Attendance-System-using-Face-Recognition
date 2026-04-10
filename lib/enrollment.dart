@@ -66,6 +66,38 @@ class EnrollmentChoicePage extends StatelessWidget {
           ],
         ),
       ),
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.white,
+        selectedItemColor: const Color(0xFF1565C0),
+        unselectedItemColor: Colors.grey,
+        currentIndex: 1,
+        selectedFontSize: 12,
+        unselectedFontSize: 12,
+        selectedIconTheme: const IconThemeData(size: 24),
+        unselectedIconTheme: const IconThemeData(size: 24),
+        onTap: (index) {
+          if (index == 0) {
+            Navigator.pushNamed(context, '/dashboard');
+          } else if (index == 1) {
+            Navigator.pushNamed(context, '/enroll');
+          } else if (index == 2) {
+            Navigator.pushNamed(context, '/reports');
+          } else if (index == 3) {
+            Navigator.pushNamed(context, '/settings');
+          }
+        },
+        items: const [
+          BottomNavigationBarItem(
+              icon: Icon(Icons.space_dashboard_rounded), label: 'Dashboard'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.camera_alt_rounded), label: 'Enrollment'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_rounded), label: 'Reports'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.settings_rounded), label: 'Settings'),
+        ],
+      ),
     );
   }
 
