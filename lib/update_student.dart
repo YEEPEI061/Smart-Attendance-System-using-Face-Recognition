@@ -14,7 +14,6 @@ class UpdateStudentPage extends StatefulWidget {
 
 class _UpdateStudentPageState extends State<UpdateStudentPage> {
   final TextEditingController _searchController = TextEditingController();
-  final GlobalKey _filterKey = GlobalKey();
 
   String selectedCourse = "All";
   String selectedType = "All"; // All | Degree | Diploma
@@ -148,9 +147,9 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
     });
   }
 
-  void _showFilterPopup() {
+  void _showFilterPopup(BuildContext iconContext) {
     final RenderBox renderBox =
-        _filterKey.currentContext!.findRenderObject() as RenderBox;
+        iconContext.findRenderObject() as RenderBox;
 
     final Offset offset = renderBox.localToGlobal(Offset.zero);
 
@@ -335,17 +334,18 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
                   Expanded(
                     child: ListView(
                       children: (groupedStudents.entries.toList()
-                            ..sort((a, b) =>
-                                a.key.toString().compareTo(b.key.toString())))
+                            ..sort((a, b) => a.key.toString().compareTo(b.key.toString())))
+                          .asMap()
+                          .entries
                           .map((entry) {
-                        final course = entry.key;
-                        final students = entry.value;
+                        final index = entry.key;
+                        final course = entry.value.key;
+                        final students = entry.value.value;
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // 🟦 COURSE HEADER
-                            // 🟦 COURSE HEADER + FILTER ICON
+                            // COURSE HEADER + FILTER ICON
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               child: Row(
@@ -359,15 +359,20 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  IconButton(
-                                    // key: _filterKey,
-                                    key: GlobalKey(),
-                                    icon: const Icon(
-                                      Icons.filter_alt_rounded,
-                                      color: Color(0xFF1565C0),
-                                    ),
-                                    onPressed: _showFilterPopup,
-                                  ),
+                                  if (index == 0)
+                                    Builder(
+                                      builder: (iconContext) {
+                                        return IconButton(
+                                          icon: const Icon(
+                                            Icons.filter_alt_rounded,
+                                            color: Color(0xFF1565C0),
+                                          ),
+                                          onPressed: () => _showFilterPopup(iconContext),
+                                        );
+                                      },
+                                    )
+                                  else
+                                    const SizedBox(width: 48),
                                 ],
                               ),
                             ),
@@ -390,7 +395,7 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
                                       ),
                                     );
 
-                                    // 🔥 refresh after returning
+                                    // Refresh after returning
                                     if (result == true) {
                                       fetchStudents();
                                     }

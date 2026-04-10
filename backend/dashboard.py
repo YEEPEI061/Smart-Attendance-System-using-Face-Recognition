@@ -589,7 +589,7 @@ def get_students():
 
         # Base SQL to get students with their primary face image
         sql = """
-            SELECT s.id, s.name, s.student_card_id, c.short_name AS course,,
+            SELECT s.id, s.name, s.student_card_id, c.short_name AS course,
                    sf.face_image_url AS face_image_url
             FROM students s
             LEFT JOIN courses c ON s.course_id = c.id
