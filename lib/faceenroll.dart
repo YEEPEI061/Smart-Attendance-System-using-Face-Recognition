@@ -287,7 +287,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF1565C0),
-      bottomNavigationBar: _buildBottomNavigationBar(),
+      // bottomNavigationBar: _buildBottomNavigationBar(),
+      bottomNavigationBar: const SizedBox(height: 60),
       body: (_capturedImages.isNotEmpty && !_isAddingPhoto)
           ? _buildPreview()
           : _buildCameraUI(),

@@ -10,6 +10,7 @@ import 'dart:developer';
 import 'package:userinterface/faceenroll.dart';
 import 'package:userinterface/providers/auth_provider.dart';
 import 'package:camera/camera.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 
 // ignore: must_be_immutable
 class EnrollmentPage extends StatefulWidget {
@@ -513,30 +514,55 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
                 const SizedBox(height: 10),
                 SizedBox(
                   height: 50,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF5F5F5),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        isExpanded: true,
-                        hint: const Text("Select course"),
-                        value: selectedCourseId,
-                        items: courses.map((course) {
-                          return DropdownMenuItem<String>(
-                            value: course['id'].toString(),
-                            child: Text(course['short_name'] ?? 'Unknown'),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedCourseId = value;
-                          });
-                        },
-                      ),
-                    ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton2<String>(
+                            isExpanded: true,
+                            hint: const Text("Select course"),
+                            value: selectedCourseId,
+
+                            items: courses.map((course) {
+                              return DropdownMenuItem<String>(
+                                value: course['id'].toString(),
+                                child: Text(course['short_name'] ?? 'Unknown'),
+                              );
+                            }).toList(),
+
+                            onChanged: (value) {
+                              setState(() {
+                                selectedCourseId = value;
+                              });
+                            },
+
+                            // 🔥 EXACT MATCH WIDTH
+                            dropdownStyleData: DropdownStyleData(
+                              maxHeight: 200,
+                              width: constraints
+                                  .maxWidth - 32, // 👈 THIS fixes it perfectly
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+
+                            menuItemStyleData: const MenuItemStyleData(
+                              height: 45,
+                            ),
+
+                            buttonStyleData: const ButtonStyleData(
+                              height: 50,
+                              padding: EdgeInsets.symmetric(horizontal: 0),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: 15),
@@ -579,69 +605,31 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
         ),
       ),
       // BottomNavigationBar with Enroll button
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Enroll button
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-            child: SizedBox(
-              height: 48,
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1565C0),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(15, 8, 15, 12),
+          child: SizedBox(
+            height: 48,
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1565C0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                onPressed: widget.isEditMode ? updateStudent : enrollStudent,
-                child: Text(
-                  widget.isEditMode ? "Update Student" : "Enroll",
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
+              ),
+              onPressed: widget.isEditMode ? updateStudent : enrollStudent,
+              child: Text(
+                widget.isEditMode ? "Update Student" : "Enroll",
+                style: const TextStyle(
+                  fontSize: 18,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           ),
-          // BottomNavigationBar
-          BottomNavigationBar(
-            type: BottomNavigationBarType.fixed,
-            backgroundColor: Colors.white,
-            selectedItemColor: const Color(0xFF1565C0),
-            unselectedItemColor: Colors.grey,
-            currentIndex: 1,
-            selectedFontSize: 12,
-            unselectedFontSize: 12,
-            selectedIconTheme: const IconThemeData(size: 24),
-            unselectedIconTheme: const IconThemeData(size: 24),
-            onTap: (index) {
-              if (index == 0) {
-                Navigator.pushReplacementNamed(context, '/dashboard');
-              } else if (index == 1) {
-                Navigator.pushReplacementNamed(context, '/enroll');
-              } else if (index == 2) {
-                Navigator.pushReplacementNamed(context, '/reports');
-              } else if (index == 3) {
-                Navigator.pushReplacementNamed(context, '/settings');
-              }
-            },
-            items: const [
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.space_dashboard_rounded),
-                  label: 'Dashboard'),
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.camera_alt_rounded), label: 'Enrollment'),
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.bar_chart_rounded), label: 'Reports'),
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.settings_rounded), label: 'Settings'),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
