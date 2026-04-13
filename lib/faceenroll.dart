@@ -153,24 +153,30 @@ class _ScannerScreenState extends State<ScannerScreen> {
     await _initializeCamera(widget.cameras[currentCameraIndex]);
   }
 
-  void _capturePhoto() async {
-    if (!_isCameraReady || _controller == null) return;
+bool _isTakingPhoto = false;
 
-    try {
-      final XFile image = await _controller!.takePicture();
+void _capturePhoto() async {
+  if (!_isCameraReady ||
+      _controller == null ||
+      _isTakingPhoto ||
+      _controller!.value.isTakingPicture) return;
 
-      final fixedImage =
-          await FlutterExifRotation.rotateImage(path: image.path);
+  try {
+    _isTakingPhoto = true;
 
-      setState(() {
-        _capturedImages.add(XFile(fixedImage.path));
-        _currentPreviewIndex = _capturedImages.length - 1;
-        _isAddingPhoto = false;
-      });
-    } catch (e) {
-      debugPrint("Error capturing photo: $e");
-    }
+    final XFile image = await _controller!.takePicture();
+
+    setState(() {
+      _capturedImages.add(image);
+      _currentPreviewIndex = _capturedImages.length - 1;
+      _isAddingPhoto = false;
+    });
+  } catch (e) {
+    debugPrint("Error capturing photo: $e");
+  } finally {
+    _isTakingPhoto = false;
   }
+}
 
   Future<void> _safeNavigate(String routeName) async {
     if (_controller != null && _controller!.value.isInitialized) {
@@ -272,7 +278,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         _controller!.value.isInitialized &&
         !_controller!.value.isTakingPicture &&
         !_controller!.value.isStreamingImages) {
-      await _controller!.resumePreview();
+      // await _controller!.resumePreview();
     }
   }
 
@@ -287,15 +293,21 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF1565C0),
-      // bottomNavigationBar: _buildBottomNavigationBar(),
-      bottomNavigationBar: const SizedBox(height: 60),
-      body: (_capturedImages.isNotEmpty && !_isAddingPhoto)
-          ? _buildPreview()
-          : _buildCameraUI(),
+      body: SafeArea(
+        child: (_capturedImages.isNotEmpty && !_isAddingPhoto)
+            ? _buildPreview()
+            : Column(
+                children: [
+                  _buildTopBar(),
+                  Expanded(child: _buildCameraPreview()),
+                  _buildCameraBottomBar(),
+                ],
+              ),
+      ),
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  /*Widget _buildBottomNavigationBar() {
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -334,9 +346,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
         ],
       ),
     );
-  }
+  }*/
 
-  Widget _buildCameraUI() {
+  /*Widget _buildCameraUI() {
     return Column(
       children: [
         _buildTopBar(),
@@ -344,12 +356,14 @@ class _ScannerScreenState extends State<ScannerScreen> {
         _buildCameraBottomBar(),
       ],
     );
-  }
+  }*/
 
   Widget _buildTopBar() {
     return Container(
       color: const Color(0xFF1565C0),
-      padding: const EdgeInsets.fromLTRB(16, 35, 16, 10),
+      // padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      // padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 15),
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Row(
@@ -413,38 +427,38 @@ class _ScannerScreenState extends State<ScannerScreen> {
       onTap: () {
         if (showSettings) setState(() => showSettings = false);
       },
+      /// ✅ IMPORTANT: Clip so overlay doesn't overflow to bottom bar
+      child: ClipRect(
+        child: Stack(
+          children: [
+            /// CAMERA
+            Positioned.fill(
+              child: CameraPreview(_controller!),
+            ),
 
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (_isCameraReady && _controller != null)
-            ClipRect(
-              child: FittedBox(
-                fit: BoxFit.cover,
-                child: SizedBox(
-                  width: _controller!.value.previewSize!.height,
-                  height: _controller!.value.previewSize!.width,
-                  child: CameraPreview(_controller!),
+            /// GRID
+            if (showGrid)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: GridPainter(),
+                  ),
                 ),
               ),
-            )
-          else
-            Container(color: Colors.grey[200]),
-          if (showGrid)
-            IgnorePointer(
-              child: CustomPaint(
-                size: Size.infinite,
-                painter: GridPainter(),
+
+            /// ✅ OVAL (UNCHANGED — JUST POSITIONED)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: FaceOutlinePainter(),
+                ),
               ),
             ),
-          IgnorePointer(
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: FaceOutlinePainter(),
-            ),
-          ),
-          if (showSettings) _buildSettingsPanel(),
-        ],
+
+            /// SETTINGS
+            if (showSettings) _buildSettingsPanel(),
+          ],
+        ),
       ),
     );
   }
@@ -497,26 +511,27 @@ class _ScannerScreenState extends State<ScannerScreen> {
   Widget _buildCameraBottomBar() {
     return Container(
       color: const Color(0xFF1565C0),
-      height: 85,
+      height: 90,
       child: Stack(
         alignment: Alignment.center,
         children: [
+          /// CAPTURE BUTTON
           Positioned(
             bottom: 12,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 4),
+            child: GestureDetector(
+              onTap: _capturePhoto,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 4),
+                    ),
                   ),
-                ),
-                GestureDetector(
-                  onTap: _capturePhoto,
-                  child: Container(
+                  Container(
                     width: 50,
                     height: 50,
                     decoration: const BoxDecoration(
@@ -524,10 +539,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       shape: BoxShape.circle,
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+
+          /// GALLERY
           Positioned(
             left: 40,
             bottom: 18,
@@ -550,6 +567,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
               ),
             ),
           ),
+
+          /// SWITCH CAMERA
           Positioned(
             right: 40,
             bottom: 18,

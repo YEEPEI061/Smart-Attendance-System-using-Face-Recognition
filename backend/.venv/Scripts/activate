@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Users\xiaoy\Documents\Smart-Attendance-System-using-Face-Recognition\backend\.venv"
+VIRTUAL_ENV="C:\Users\xiaoy\Desktop\Smart-Attendance-System-using-Face-Recognition\backend\.venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

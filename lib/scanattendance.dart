@@ -335,10 +335,10 @@ class _ScanAttendanceState extends State<ScanAttendance> {
       statusBarIconBrightness: Brightness.light,
     ));
 
-    return Scaffold(
+    /*return Scaffold(
       backgroundColor: const Color(0xFF1565C0),
       // bottomNavigationBar: _buildBottomNavigationBar(),
-      bottomNavigationBar: const SizedBox(height: 60),
+      // bottomNavigationBar: const SizedBox(height: 60),
       body: (_capturedImages.isNotEmpty && !_isAddingPhoto)
           ? _buildPreview()
           : Column(
@@ -348,13 +348,28 @@ class _ScanAttendanceState extends State<ScanAttendance> {
                 _buildCaptureControls(),
               ],
             ),
+    );*/
+    return Scaffold(
+      backgroundColor: const Color(0xFF1565C0),
+      body: SafeArea(
+        child: (_capturedImages.isNotEmpty && !_isAddingPhoto)
+            ? _buildPreview()
+            : Column(
+                children: [
+                  _buildTopBar(),
+                  Expanded(child: _buildCameraView()), // or Preview
+                  _buildCaptureControls(), // or BottomBar
+                ],
+              ),
+      ),
     );
   }
 
   Widget _buildTopBar() {
     return Container(
       color: const Color(0xFF1565C0),
-      padding: const EdgeInsets.fromLTRB(16, 35, 16, 10),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 15),
+      // padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Align(
         alignment: Alignment.bottomCenter,
         child: Row(
@@ -471,7 +486,7 @@ class _ScanAttendanceState extends State<ScanAttendance> {
   Widget _buildCaptureControls() {
     return Container(
       color: const Color(0xFF1565C0),
-      height: 85,
+      height: 90,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -542,7 +557,7 @@ class _ScanAttendanceState extends State<ScanAttendance> {
     );
   }
 
-  Widget _buildBottomNavigationBar() {
+  /*Widget _buildBottomNavigationBar() {
     return Container(
       decoration: const BoxDecoration(
           color: Colors.white,
@@ -583,7 +598,7 @@ class _ScanAttendanceState extends State<ScanAttendance> {
         ],
       ),
     );
-  }
+  }*/
 
   Widget _buildPreview() {
     return Stack(
