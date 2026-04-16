@@ -32,6 +32,7 @@ dependencies:
   flutter_exif_rotation: ^0.5.1
   cached_network_image: ^3.2.3
   dropdown_button2: ^2.3.9
+  showcaseview: ^3.0.0
 
  
 dev_dependencies:
@@ -43,5 +44,6 @@ flutter:
  
   assets:
   - assets/images/
+  - assets/images/help/
   - assets/msal_config.json
   - .env

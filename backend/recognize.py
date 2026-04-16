@@ -118,13 +118,14 @@ def recognize_face():
                     continue
 
                 cursor.execute("""
-                    SELECT s.id, s.name, s.course
+                    SELECT s.id, s.name, co.short_name AS course
                     FROM students s
                     JOIN student_faces sf ON s.id = sf.student_id
                     JOIN enrollments e ON s.id = e.student_id
-                    JOIN classes c ON e.subject_id = c.subject_id
+                    JOIN classes cl ON e.subject_id = cl.subject_id
+                    LEFT JOIN courses co ON s.course_id = co.id
                     WHERE sf.face_token = %s
-                    AND c.id = %s
+                    AND cl.id = %s
                 """, (matched_token, class_id))
 
                 student = cursor.fetchone()

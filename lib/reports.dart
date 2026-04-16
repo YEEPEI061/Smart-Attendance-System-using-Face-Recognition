@@ -10,6 +10,8 @@ import 'package:printing/printing.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+// import 'package:showcaseview/showcaseview.dart';
+// import 'package:userinterface/help/app_tour.dart';
 
 void main() {
   runApp(const MyApp());
@@ -42,6 +44,11 @@ class AttendanceReportPage extends StatefulWidget {
 }
 
 class _AttendanceReportPageState extends State<AttendanceReportPage> {
+  /*final GlobalKey _tourDateKey = GlobalKey();
+  final GlobalKey _tourGroupKey = GlobalKey();
+  final GlobalKey _tourScheduleKey = GlobalKey();
+  final GlobalKey _tourExportKey = GlobalKey();*/
+
   String changeRate = "0%";
   String selectedRange = "Select Date";
   DateTime? selectedDate = DateTime.now();
@@ -137,7 +144,6 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        log("DEBUG: student_details first record: ${data['student_details'][0]}");
         setState(() {
           backendReportData = data;
           totalPresent = data['total_present'].toString();
@@ -152,9 +158,27 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
             return FlSpot(i.toDouble(), (trends[i]['rate'] as num).toDouble());
           });
         });
+      } else {
+        log("Report fetch error ${response.statusCode}: ${response.body}");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Failed to load report (${response.statusCode}). Check your connection."),
+              backgroundColor: Colors.red.shade600,
+            ),
+          );
+        }
       }
     } catch (e) {
       log("Error fetching report data: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: $e"),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+      }
     }
   }
 
@@ -355,7 +379,145 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
+    /*return tourWrapper(
+      pageId: 'reports',
+      autoStartKeys: [_tourDateKey, _tourGroupKey, _tourScheduleKey, _tourExportKey],
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: const SystemUiOverlayStyle(
+          statusBarColor: Colors.white,
+          statusBarIconBrightness: Brightness.dark,
+          systemNavigationBarColor: Colors.white,
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          backgroundColor: const Color(0xFFFFFFFF),
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(50),
+            child: AppBar(
+              automaticallyImplyLeading: false,
+              backgroundColor: const Color(0xFFFFFFFF),
+              elevation: 0,
+              centerTitle: false,
+              iconTheme: const IconThemeData(color: Colors.black),
+              actions: [
+                Builder(
+                  builder: (innerCtx) => IconButton(
+                    icon: const Icon(Icons.help_outline_rounded,
+                        color: Color(0xFF9E9E9E)),
+                    tooltip: 'Show Guide',
+                    onPressed: () {
+                      ShowCaseWidget.of(innerCtx).startShowCase([
+                        _tourDateKey,
+                        _tourGroupKey,
+                        _tourScheduleKey,
+                        _tourExportKey,
+                      ]);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Overall Attendance",
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 10),
+
+                if (selectedGroupId == null) ...[
+                  _buildEmptyState(
+                    icon: Icons.bar_chart_rounded,
+                    title: "No selection yet",
+                    subtitle:
+                        "Select a Group below to view attendance report.\nYou can also pick a Date and Schedule Time for more details.",
+                  ),
+                ] else ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildSummaryCard("Total Present", totalPresent),
+                      _buildSummaryCard("Daily Rate", dailyRate, isRate: true),
+                    ],
+                  ),
+                  const SizedBox(height: 25),
+                  const Text("Attendance Trends",
+                      style: TextStyle(
+                          fontSize: 19, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 10),
+                  _buildTrendContainer(),
+                ],
+                const SizedBox(height: 25),
+                const Text("Filter & Export",
+                    style:
+                        TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 15),
+
+                const Text("Date",
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 5),
+                tourTarget(
+                  key: _tourDateKey,
+                  title: 'Step 1 — Select Date',
+                  description: 'Tap to pick a date for the report.',
+                  child: _buildDatePickerTile(),
+                ),
+
+                const SizedBox(height: 15),
+                const Text("Group",
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 5),
+                tourTarget(
+                  key: _tourGroupKey,
+                  title: 'Step 2 — Choose a Group',
+                  description: 'Select a class group to view its attendance.',
+                  child: _buildGroupDropdown(),
+                ),
+
+                const SizedBox(height: 15),
+                const Text("Schedule Time",
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 5),
+                tourTarget(
+                  key: _tourScheduleKey,
+                  title: 'Step 3 — Schedule Time',
+                  description: 'Pick a session time to filter by class slot.',
+                  child: _buildDropdown(
+                    value: selectedScheduleId,
+                    items: backendSchedules,
+                    hint: "Select Time",
+                    isSchedule: true,
+                    onChanged: (val) {
+                      setState(() => selectedScheduleId = val);
+                      _fetchReportData();
+                    },
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+                tourTarget(
+                  key: _tourExportKey,
+                  title: 'Step 4 — Export Report',
+                  description: 'Generate and download the report as a PDF.',
+                  child: _buildExportButton(),
+                ),
+              ],
+            ),
+          ),
+          bottomNavigationBar: _buildBottomNav(),
+        ),
+      ),
+    );
+  }*/
+  return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.white,
         statusBarIconBrightness: Brightness.dark,

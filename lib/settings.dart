@@ -13,6 +13,10 @@ import 'package:userinterface/changepsw.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:userinterface/services/notification_service.dart';
 import 'package:userinterface/services/attendance_reminder_sync.dart';
+// import 'package:showcaseview/showcaseview.dart'; // tour disabled
+// import 'package:userinterface/help/app_tour.dart'; // tour disabled
+import 'package:userinterface/help/guide_prefs.dart';
+import 'package:userinterface/help/help_center.dart';
 
 class AccountSettingsPage extends StatefulWidget {
   const AccountSettingsPage({super.key});
@@ -22,9 +26,17 @@ class AccountSettingsPage extends StatefulWidget {
 }
 
 class _AccountSettingsPageState extends State<AccountSettingsPage> {
+  /*final GlobalKey _tourProfileKey = GlobalKey();
+  final GlobalKey _tourChangePswKey = GlobalKey();
+  final GlobalKey _tourRemindersKey = GlobalKey();
+  final GlobalKey _tourGuideModeKey = GlobalKey();
+  final GlobalKey _tourHelpCenterKey = GlobalKey();
+  final GlobalKey _tourSignOutKey = GlobalKey();*/
+
   bool attendanceReminders = true;
+  bool guideMode = true;
   String? _profileImageUrl;
-  bool _isProfileLoading = true;
+  // bool _isProfileLoading = true;
   late TextEditingController _usernameController;
   late TextEditingController _emailController;
   File? _selectedImage;
@@ -40,6 +52,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     
     // Load preference & automatically sync with Database
     _loadAndSyncReminders();
+    _loadGuideMode();
   }
 
   Future<void> _loadAndSyncReminders() async {
@@ -55,6 +68,13 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       //await _setupAttendanceReminder();
     }
   }
+
+  Future<void> _loadGuideMode() async {
+    final enabled = await GuidePrefs.isGuideModeEnabled();
+    if (!mounted) return;
+    setState(() => guideMode = enabled);
+  }
+
   Future<void> _setupAttendanceReminder() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final userId = authProvider.userId;
@@ -66,13 +86,13 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     await AttendanceReminderSync.sync(baseUrl: baseUrl, userId: userId);
   }
 
-  DateTime _parseClassTime(String timeStr) {
+  /*DateTime _parseClassTime(String timeStr) {
     final now = DateTime.now();
     try {
       final parts = timeStr.split(' ')[0].split(':');
       return DateTime(now.year, now.month, now.day, int.parse(parts[0]), int.parse(parts[1]));
     } catch (e) { return now.subtract(const Duration(days: 1)); }
-  }
+  }*/
 
   Future<void> _fetchProfile() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
@@ -99,7 +119,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
               _selectedImage = null;
             });
           }
-          _isProfileLoading = false;
+          // _isProfileLoading = false;
         });
       }
     } catch (e) {
@@ -327,20 +347,21 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        systemNavigationBarColor: Colors.white,
-        systemNavigationBarIconBrightness: Brightness.dark,
-        systemNavigationBarDividerColor: Colors.transparent,
-        statusBarColor: Colors.white,
-        statusBarIconBrightness: Brightness.dark,
-      ),
-      child: Scaffold(
-        resizeToAvoidBottomInset: false,
-        backgroundColor: const Color(0xFFFFFFFF),
-        appBar: AppBar(
-            backgroundColor: const Color(0xFFFFFFFF),
-            elevation: 0,
-            centerTitle: true),
+        value: const SystemUiOverlayStyle(
+          systemNavigationBarColor: Colors.white,
+          systemNavigationBarIconBrightness: Brightness.dark,
+          systemNavigationBarDividerColor: Colors.transparent,
+          statusBarColor: Colors.white,
+          statusBarIconBrightness: Brightness.dark,
+        ),
+        child: Scaffold(
+          resizeToAvoidBottomInset: false,
+          backgroundColor: const Color(0xFFFFFFFF),
+          appBar: AppBar(
+              backgroundColor: const Color(0xFFFFFFFF),
+              elevation: 0,
+              centerTitle: true,
+              actions: const []),
         bottomNavigationBar: BottomNavigationBar(
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
@@ -458,7 +479,7 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                           ),
                         ),
                       ],
-                    ),
+                    ), // Row — profile
                     const SizedBox(height: 15),
                     const Text(
                       "Username",
@@ -525,32 +546,32 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF1565C0),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12, horizontal: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
-                        ),
-                        onPressed: () {
-                          if (!mounted) return;
+                          onPressed: () {
+                            if (!mounted) return;
 
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) =>
-                                    const ChangePasswordPage()),
-                          );
-                        },
-                        child: const Text(
-                          "Change Password",
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) =>
+                                      const ChangePasswordPage()),
+                            );
+                          },
+                          child: const Text(
+                            "Change Password",
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -580,14 +601,51 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                       color: const Color(0x1A000000),
                     ),
                     const SizedBox(height: 5),
+                    // TOUR: tourTarget(key: _tourRemindersKey, ...) removed
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text("Attendance Reminders"),
+                          Transform.scale(
+                            scale: 0.8,
+                            child: Switch(
+                              value: attendanceReminders,
+                              activeThumbColor: const Color(0xFF1565C0),
+                              activeTrackColor: const Color(0x331565C0),
+                              inactiveThumbColor: Colors.grey.shade400,
+                              inactiveTrackColor: Colors.grey.shade300,
+                              splashRadius: 0,
+                              trackOutlineColor:
+                                  WidgetStateProperty.all(Colors.transparent),
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                              onChanged: (value) async {
+                                setState(() => attendanceReminders = value);
+
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setBool('reminders_enabled', value);
+
+                                if (value) {
+                                  _setupAttendanceReminder();
+                                } else {
+                                  log("Attendance reminders deactivated");
+                                  await NotificationService.cancelAll();
+                                }
+                              },
+                            ),
+                          ),
+                      ],
+                    ), // Row — reminders
+                    const SizedBox(height: 5),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Guide Mode"),
                         Transform.scale(
                           scale: 0.8,
                           child: Switch(
-                            value: attendanceReminders,
+                            value: guideMode,
                             activeThumbColor: const Color(0xFF1565C0),
                             activeTrackColor: const Color(0x331565C0),
                             inactiveThumbColor: Colors.grey.shade400,
@@ -598,50 +656,73 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                             materialTapTargetSize:
                                 MaterialTapTargetSize.shrinkWrap,
                             onChanged: (value) async {
-                              setState(() => attendanceReminders = value);
-                              
-                              final prefs = await SharedPreferences.getInstance();
-                              await prefs.setBool('reminders_enabled', value);
-                              
-                              // Handle logic
-                              if (value) {
-                                _setupAttendanceReminder();
-                              } else {
-                                log("Attendance reminders deactivated");
-                                await NotificationService.cancelAll();
-                              }
+                              setState(() => guideMode = value);
+                              await GuidePrefs.setGuideModeEnabled(value);
                             },
                           ),
                         ),
                       ],
-                    ),
+                    ), // Row — Guide Mode
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                          icon: const Icon(Icons.help_outline_rounded,
+                              color: Color(0xFF1565C0)),
+                          label: const Text(
+                            "Help Center",
+                            style: TextStyle(
+                              color: Color(0xFF1565C0),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            side: const BorderSide(color: Color(0x1A000000)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const HelpCenterPage(
+                                  initialIndex: 4,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
                   ],
                 ),
               ),
-                
+
               const SizedBox(height: 15),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFEA324C),
-                    padding: const EdgeInsets.symmetric(
-                        vertical: 12, horizontal: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFEA324C),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12, horizontal: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                     ),
-                  ),
-                  onPressed: _handleSignOut,
-                  child: const Text(
-                    "Sign Out",
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                    onPressed: _handleSignOut,
+                    child: const Text(
+                      "Sign Out",
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),

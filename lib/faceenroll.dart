@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:userinterface/faceenroll2.dart';
 import 'package:flutter_exif_rotation/flutter_exif_rotation.dart';
 
@@ -120,11 +121,227 @@ class _ScannerScreenState extends State<ScannerScreen> {
         setState(() {
           _isCameraReady = true;
         });
+        // Show a one-time camera guide on first visit.
+        _maybeShowCameraGuide();
       }
     } catch (e) {
       debugPrint("Camera error: $e");
     }
   }
+
+  /*Future<void> _maybeShowCameraGuide() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool guide = prefs.getBool('guide_mode') ?? true;
+    if (!guide || !mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Camera Guide',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _guideTip(Icons.circle_outlined,
+                'Tap the white circle to capture a photo.'),
+            _guideTip(Icons.photo_library_rounded,
+                'Bottom-left icon: pick from gallery.'),
+            _guideTip(Icons.cameraswitch_rounded,
+                'Bottom-right icon: flip camera.'),
+            _guideTip(Icons.check_circle_rounded,
+                'Tap "Confirm" to proceed to enrollment.'),
+            _guideTip(Icons.refresh_rounded,
+                'Tap "Retake" to capture again.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              // Turn off guide mode so this dialog won't show again.
+              await prefs.setBool('guide_mode', false);
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: const Text("Don't show again",
+                style: TextStyle(color: Colors.black54)),
+          ),
+          TextButton(
+            onPressed: () {
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: const Text('Got it!',
+                style: TextStyle(
+                    color: Color(0xFF1565C0),
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }*/
+
+  Future<void> _maybeShowCameraGuide() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool guide = prefs.getBool('guide_mode') ?? true;
+    if (!guide || !mounted) return;
+
+    await Future.delayed(const Duration(milliseconds: 150));
+
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          padding: const EdgeInsets.fromLTRB(24, 26, 24, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              /// ICON (same style as tour complete)
+              Container(
+                width: 56,
+                height: 56,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE3F2FD),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.camera_alt_rounded,
+                  color: Color(0xFF1565C0),
+                  size: 28,
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              /// TITLE
+              const Text(
+                'Camera Guide',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black87,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              /// GUIDE ITEMS
+              _guideRow(Icons.radio_button_unchecked_rounded,
+                  'Tap the white circle to capture a photo.'),
+              _guideRow(Icons.photo_library_rounded,
+                  'Bottom-left icon: pick from gallery.'),
+              _guideRow(Icons.cameraswitch_rounded,
+                  'Bottom-right icon: flip camera.'),
+              _guideRow(Icons.check_circle_rounded,
+                  'Tap "Confirm" to proceed to enrollment.'),
+              _guideRow(Icons.refresh_rounded,
+                  'Tap "Retake" to capture again.'),
+              _guideRow(Icons.add_circle_outline,
+                  'Tap "Add" to capture another photo.'),
+
+              const SizedBox(height: 20),
+
+              /// PRIMARY BUTTON (FULL WIDTH)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1565C0),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text(
+                    'Got it!',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              /// DON'T SHOW AGAIN (BELOW BUTTON ✅)
+              GestureDetector(
+                onTap: () async {
+                  await prefs.setBool('guide_mode', false);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                },
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    "Don't show again",
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.black38,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /*Widget _guideTip(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF1565C0)),
+          const SizedBox(width: 10),
+          Expanded(
+              child: Text(text,
+                  style: const TextStyle(fontSize: 13, height: 1.4))),
+        ],
+      ),
+    );
+  }*/
+
+  Widget _guideRow(IconData icon, String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: const Color(0xFF1565C0)),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Text(
+            text,
+            textAlign: TextAlign.left, // keep readable alignment
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.black87,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
 
   void _toggleFlash() async {
     if (_controller == null || !_controller!.value.isInitialized) return;

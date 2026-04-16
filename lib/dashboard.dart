@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:developer';
-import 'dart:async';
+import 'dart:async'; // provides Completer
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +13,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:userinterface/providers/auth_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:userinterface/services/notification_service.dart';
+import 'package:showcaseview/showcaseview.dart';
+import 'package:userinterface/help/app_tour.dart';
 
 class FileItem {
   int id;
@@ -42,6 +44,19 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  // Tour keys
+  final GlobalKey _tourSearchKey = GlobalKey();
+  final GlobalKey _tourAddGroupKey = GlobalKey();
+  final GlobalKey _tourOpenGroupKey = GlobalKey();
+  final GlobalKey _tourPersonIconKey = GlobalKey();
+  final GlobalKey _tourEditKey = GlobalKey();
+  final GlobalKey _tourDeleteKey = GlobalKey();
+  final GlobalKey _tourAddScheduleKey = GlobalKey();
+
+  // Completer that signals when the initial folder fetch is done.
+  // tourWrapper awaits this so the tour only starts once targets are visible.
+  final Completer<void> _dataLoaded = Completer<void>();
+
   List<Folder> folders = [];
   List<Folder> filteredFolders = [];
   bool isLoading = true;
@@ -740,14 +755,17 @@ class _DashboardPageState extends State<DashboardPage> {
           filteredFolders = folders;
           isLoading = false;
         });
+        if (!_dataLoaded.isCompleted) _dataLoaded.complete();
         log('Successfully fetched subjects: ${folders.length} items');
       } else {
         log('Error fetching subjects: ${response.statusCode}');
         setState(() => isLoading = false);
+        if (!_dataLoaded.isCompleted) _dataLoaded.complete();
       }
     } catch (e, stackTrace) {
       log('Error fetching subjects', error: e, stackTrace: stackTrace);
       setState(() => isLoading = false);
+      if (!_dataLoaded.isCompleted) _dataLoaded.complete();
     }
   }
 
@@ -1574,14 +1592,59 @@ class _DashboardPageState extends State<DashboardPage> {
       statusBarIconBrightness: Brightness.dark,
     ));
 
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: Colors.white,
-      ),
-      body: GestureDetector(
+    return tourWrapper(
+      pageId: 'dashboard',
+      /*// Only include keys that are ALWAYS rendered (search bar + add button).
+      // Folder-specific keys are shown via the manual Help icon when present.
+      autoStartKeys: [_tourSearchKey, _tourAddGroupKey],*/
+      
+      // After readyFuture completes the widget will have rebuilt with the
+      // populated filteredFolders list, so the full 6-key list will be used.
+      autoStartKeys: filteredFolders.isNotEmpty
+          ? [
+              _tourSearchKey,
+              _tourAddGroupKey,
+              _tourOpenGroupKey,
+              _tourAddScheduleKey,
+              _tourPersonIconKey,
+              _tourEditKey,
+              _tourDeleteKey,
+            ]
+          : [_tourSearchKey, _tourAddGroupKey],
+      readyFuture: _dataLoaded.future,
+      child: Scaffold(
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          centerTitle: true,
+          elevation: 0,
+          backgroundColor: Colors.white,
+          actions: [
+            Builder(
+              builder: (innerCtx) => IconButton(
+                icon: const Icon(
+                  Icons.help_outline_rounded,
+                  color: Color(0xFF9E9E9E),
+                ),
+                tooltip: 'Show Guide',
+                onPressed: () {
+                  final keys = filteredFolders.isNotEmpty
+                      ? [
+                          _tourSearchKey,
+                          _tourAddGroupKey,
+                          _tourOpenGroupKey,
+                          _tourAddScheduleKey,
+                          _tourPersonIconKey,
+                          _tourEditKey,
+                          _tourDeleteKey,
+                        ]
+                      : [_tourSearchKey, _tourAddGroupKey];
+                  ShowCaseWidget.of(innerCtx).startShowCase(keys);
+                },
+              ),
+            ),
+          ],
+        ),
+        body: GestureDetector(
         behavior: HitTestBehavior.opaque, // Makes entire body tappable
         onTap: () {
           FocusScope.of(context).unfocus(); // Close keyboard
@@ -1592,35 +1655,42 @@ class _DashboardPageState extends State<DashboardPage> {
               ? const Center(child: CircularProgressIndicator())
               : Column(
                   children: [
-                    TextField(
-                      controller: groupSearchController,
-                      onChanged: _filterGroups,
-                      decoration: InputDecoration(
-                        hintText: "Search",
-                        hintStyle: const TextStyle(color: Color(0xFF9E9E9E)),
-                        suffixIcon: groupSearchController.text.isEmpty
-                            ? const Icon(Icons.search, color: Color(0x4D000000))
-                            : IconButton(
-                                // REMARK: Added a clear button for better UX
-                                icon: const Icon(Icons.clear,
-                                    color: Color(0xFF1565C0)),
-                                onPressed: () {
-                                  groupSearchController.clear();
-                                  _filterGroups("");
-                                },
-                              ),
-                        contentPadding: const EdgeInsets.only(
-                            left: 10, top: 12, bottom: 12),
-                        filled: true,
-                        fillColor: const Color(0xFFF6F6F6),
-                        enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                                color: Color(0x1A000000), width: 1)),
-                        focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(
-                                color: Color(0xFFF6F6F6), width: 1)),
+                    tourTarget(
+                      key: _tourSearchKey,
+                      title: "Step 1 — Search groups",
+                      description:
+                          "Use search to quickly find the group you want.",
+                      child: TextField(
+                        controller: groupSearchController,
+                        onChanged: _filterGroups,
+                        decoration: InputDecoration(
+                          hintText: "Search",
+                          hintStyle:
+                              const TextStyle(color: Color(0xFF9E9E9E)),
+                          suffixIcon: groupSearchController.text.isEmpty
+                              ? const Icon(Icons.search,
+                                  color: Color(0x4D000000))
+                              : IconButton(
+                                  icon: const Icon(Icons.clear,
+                                      color: Color(0xFF1565C0)),
+                                  onPressed: () {
+                                    groupSearchController.clear();
+                                    _filterGroups("");
+                                  },
+                                ),
+                          contentPadding: const EdgeInsets.only(
+                              left: 10, top: 12, bottom: 12),
+                          filled: true,
+                          fillColor: const Color(0xFFF6F6F6),
+                          enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                  color: Color(0x1A000000), width: 1)),
+                          focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFFF6F6F6), width: 1)),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -1673,17 +1743,27 @@ class _DashboardPageState extends State<DashboardPage> {
                               child: Padding(
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
-                                child: Material(
-                                  color: const Color(0xFF1565C0),
-                                  shape: const CircleBorder(),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(100),
-                                    onTap: () => _showFolderDialog(),
-                                    child: const SizedBox(
-                                      width: 30,
-                                      height: 30,
-                                      child: Icon(Icons.add,
-                                          color: Colors.white, size: 22),
+                                child: tourTarget(
+                                  key: _tourAddGroupKey,
+                                  title: "Step 2 — Add a group",
+                                  description:
+                                      "Tap here to create a new group for a class.",
+                                  shapeBorder: const RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.all(Radius.circular(999)),
+                                  ),
+                                  child: Material(
+                                    color: const Color(0xFF1565C0),
+                                    shape: const CircleBorder(),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(100),
+                                      onTap: () => _showFolderDialog(),
+                                      child: const SizedBox(
+                                        width: 30,
+                                        height: 30,
+                                        child: Icon(Icons.add,
+                                            color: Colors.white, size: 22),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1692,6 +1772,11 @@ class _DashboardPageState extends State<DashboardPage> {
                           }
 
                           final folder = filteredFolders[index];
+
+                          final bool isFirstFolderTile =
+                              groupSearchController.text.isEmpty &&
+                                  filteredFolders.isNotEmpty &&
+                                  index == 0;
 
                           return Dismissible(
                             key: Key(folder.name),
@@ -1728,144 +1813,406 @@ class _DashboardPageState extends State<DashboardPage> {
                             },
                             child: Column(
                               children: [
-                                GestureDetector(
-                                  onTap: () async {
-                                    if (!folder.isExpanded &&
-                                        folder.files.isEmpty) {
-                                      await fetchFiles(folder);
-                                    }
-                                    setState(() =>
-                                        folder.isExpanded = !folder.isExpanded);
-                                  },
-                                  child: Container(
-                                    height: 105,
-                                    margin:
-                                        const EdgeInsets.symmetric(vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF7F8FA),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    padding: const EdgeInsets.fromLTRB(
-                                        12, 10, 12, 5),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Container(
-                                              width: 40,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                color: const Color(0x1A000000),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                image: folder.imageUrl !=
-                                                            null &&
-                                                        folder.imageUrl!
-                                                            .isNotEmpty
-                                                    ? DecorationImage(
-                                                        image: NetworkImage(
-                                                            folder.imageUrl!),
-                                                        fit: BoxFit.cover,
-                                                      )
+                                (isFirstFolderTile
+                                        ? tourTarget(
+                                            key: _tourOpenGroupKey,
+                                            title: "Step 3 — Open a group",
+                                            description:
+                                                "Tap a group to expand and see schedule times.",
+                                            child: GestureDetector(
+                                              onTap: () async {
+                                                if (!folder.isExpanded &&
+                                                    folder.files.isEmpty) {
+                                                  await fetchFiles(folder);
+                                                }
+                                                setState(() => folder.isExpanded =
+                                                    !folder.isExpanded);
+
+                                                // After expanding, show add-schedule
+                                                // Guide_mode is enabled.
+                                                if (folder.isExpanded) {
+                                                  WidgetsBinding.instance
+                                                      .addPostFrameCallback((_) async {
+                                                    try {
+                                                      // Skip if the main tour is running.
+                                                      final active =
+                                                          ShowCaseWidget.activeTargetWidget(
+                                                              context);
+                                                      if (active == null) {
+                                                        final prefs =
+                                                            await SharedPreferences
+                                                                .getInstance();
+                                                        final guide = prefs
+                                                                .getBool('guide_mode') ??
+                                                            true;
+                                                        if (guide) {
+                                                          ShowCaseWidget.of(context)
+                                                              .startShowCase(
+                                                                  [_tourAddScheduleKey]);
+                                                        }
+                                                      }
+                                                    } catch (_) {}
+                                                  });
+                                                }
+                                              },
+                                              child: Container(
+                                                height: 105,
+                                                margin:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      const Color(0xFFF7F8FA),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.fromLTRB(
+                                                        12, 10, 12, 5),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceBetween,
+                                                  children: [
+                                                    Row(
+                                                      children: [
+                                                        Container(
+                                                          width: 40,
+                                                          height: 40,
+                                                          decoration:
+                                                              BoxDecoration(
+                                                            color: const Color(
+                                                                0x1A000000),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(8),
+                                                            image: folder.imageUrl !=
+                                                                        null &&
+                                                                    folder.imageUrl!
+                                                                        .isNotEmpty
+                                                                ? DecorationImage(
+                                                                    image: NetworkImage(
+                                                                        folder.imageUrl!),
+                                                                    fit: BoxFit.cover,
+                                                                  )
+                                                                : null,
+                                                          ),
+                                                          child: folder.imageUrl ==
+                                                                      null ||
+                                                                  folder.imageUrl!
+                                                                      .isEmpty
+                                                              ? const Icon(
+                                                                  Icons.folder,
+                                                                  color:
+                                                                      Colors.grey,
+                                                                  size: 20)
+                                                              : null,
+                                                        ),
+                                                        const SizedBox(width: 12),
+                                                        Expanded(
+                                                          child: Column(
+                                                            crossAxisAlignment:
+                                                                CrossAxisAlignment
+                                                                    .start,
+                                                            children: [
+                                                              Text(
+                                                                folder.name,
+                                                                style:
+                                                                    const TextStyle(
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .w600,
+                                                                  fontSize: 15,
+                                                                ),
+                                                              ),
+                                                              Text(
+                                                                "Last updated on ${folder.date.day.toString().padLeft(2, '0')}/"
+                                                                "${folder.date.month.toString().padLeft(2, '0')}/"
+                                                                "${folder.date.year}",
+                                                                style: const TextStyle(
+                                                                    fontSize: 12,
+                                                                    color:
+                                                                        Colors.grey),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                        Icon(
+                                                          folder.isExpanded
+                                                              ? Icons
+                                                                  .keyboard_arrow_up_rounded
+                                                              : Icons
+                                                                  .keyboard_arrow_down_rounded,
+                                                          color: const Color(
+                                                              0xE6000000),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment.end,
+                                                      children: [
+                                                        (isFirstFolderTile
+                                                            ? tourTarget(
+                                                                key: _tourPersonIconKey,
+                                                                title:
+                                                                    'Step 5 — Assign students',
+                                                                description:
+                                                                    'Enroll students into this class. Students must be registered first via the Enrollment page.',
+                                                                shapeBorder:
+                                                                    const CircleBorder(),
+                                                                child: IconButton(
+                                                                  onPressed: () {
+                                                                    _showEnrollStudentDialog(
+                                                                        folder
+                                                                            .id!);
+                                                                  },
+                                                                  icon:
+                                                                      const Icon(
+                                                                    Icons.person,
+                                                                    color: Color(
+                                                                        0xB3000000),
+                                                                    size: 20,
+                                                                  ),
+                                                                ),
+                                                              )
+                                                            : IconButton(
+                                                                onPressed: () {
+                                                                  _showEnrollStudentDialog(
+                                                                      folder
+                                                                          .id!);
+                                                                },
+                                                                icon: const Icon(
+                                                                  Icons.person,
+                                                                  color: Color(
+                                                                      0xB3000000),
+                                                                  size: 20,
+                                                                ),
+                                                              )),
+                                                        Container(
+                                                          width: 1,
+                                                          height: 20,
+                                                          color: const Color(
+                                                              0x1A000000),
+                                                        ),
+                                                        (isFirstFolderTile
+                                                            ? tourTarget(
+                                                                key: _tourEditKey,
+                                                                title: 'Step 6 — Edit group',
+                                                                description:
+                                                                    'Tap to edit name or photo. Or swipe → on the card.',
+                                                                shapeBorder:
+                                                                    const CircleBorder(),
+                                                                child: IconButton(
+                                                                  onPressed: () =>
+                                                                      _showFolderDialog(
+                                                                          folder: folder,
+                                                                          isEdit: true),
+                                                                  icon: const Icon(
+                                                                    Icons.edit_rounded,
+                                                                    color: Color(0xFF1565C0),
+                                                                    size: 20,
+                                                                  ),
+                                                                ),
+                                                              )
+                                                            : IconButton(
+                                                                onPressed: () =>
+                                                                    _showFolderDialog(
+                                                                        folder: folder,
+                                                                        isEdit: true),
+                                                                icon: const Icon(
+                                                                  Icons.edit_rounded,
+                                                                  color: Color(0xFF1565C0),
+                                                                  size: 20,
+                                                                ),
+                                                              )),
+                                                        Container(
+                                                          width: 1,
+                                                          height: 20,
+                                                          color: const Color(
+                                                              0x1A000000),
+                                                        ),
+                                                        (isFirstFolderTile
+                                                            ? tourTarget(
+                                                                key: _tourDeleteKey,
+                                                                title: 'Step 7 — Delete group',
+                                                                description:
+                                                                    'Tap to delete. Or swipe ← on the card.',
+                                                                shapeBorder:
+                                                                    const CircleBorder(),
+                                                                child: IconButton(
+                                                                  onPressed: () =>
+                                                                      _showDeleteDialog(
+                                                                          folder),
+                                                                  icon: const Icon(
+                                                                    Icons.delete_rounded,
+                                                                    color: Color(0xFFF84F31),
+                                                                    size: 20,
+                                                                  ),
+                                                                ),
+                                                              )
+                                                            : IconButton(
+                                                                onPressed: () =>
+                                                                    _showDeleteDialog(
+                                                                        folder),
+                                                                icon: const Icon(
+                                                                  Icons.delete_rounded,
+                                                                  color: Color(0xFFF84F31),
+                                                                  size: 20,
+                                                                ),
+                                                              )),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : GestureDetector(
+                                    onTap: () async {
+                                      if (!folder.isExpanded &&
+                                          folder.files.isEmpty) {
+                                        await fetchFiles(folder);
+                                      }
+                                      setState(() => folder.isExpanded =
+                                          !folder.isExpanded);
+                                    },
+                                    child: Container(
+                                      height: 105,
+                                      margin: const EdgeInsets.symmetric(
+                                          vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF7F8FA),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      padding: const EdgeInsets.fromLTRB(
+                                          12, 10, 12, 5),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      const Color(0x1A000000),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  image: folder.imageUrl !=
+                                                              null &&
+                                                          folder.imageUrl!
+                                                              .isNotEmpty
+                                                      ? DecorationImage(
+                                                          image: NetworkImage(
+                                                              folder.imageUrl!),
+                                                          fit: BoxFit.cover,
+                                                        )
+                                                      : null,
+                                                ),
+                                                child: folder.imageUrl ==
+                                                            null ||
+                                                        folder.imageUrl!.isEmpty
+                                                    ? const Icon(Icons.folder,
+                                                        color: Colors.grey,
+                                                        size: 20)
                                                     : null,
                                               ),
-                                              child: folder.imageUrl == null ||
-                                                      folder.imageUrl!.isEmpty
-                                                  ? const Icon(Icons.folder,
-                                                      color: Colors.grey,
-                                                      size: 20)
-                                                  : null,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Text(
-                                                    folder.name,
-                                                    style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                      fontSize: 15,
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      folder.name,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        fontSize: 15,
+                                                      ),
                                                     ),
-                                                  ),
-                                                  Text(
-                                                    "Last updated on ${folder.date.day.toString().padLeft(2, '0')}/"
-                                                    "${folder.date.month.toString().padLeft(2, '0')}/"
-                                                    "${folder.date.year}",
-                                                    style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.grey),
-                                                  ),
-                                                ],
+                                                    Text(
+                                                      "Last updated on ${folder.date.day.toString().padLeft(2, '0')}/"
+                                                      "${folder.date.month.toString().padLeft(2, '0')}/"
+                                                      "${folder.date.year}",
+                                                      style: const TextStyle(
+                                                          fontSize: 12,
+                                                          color: Colors.grey),
+                                                    ),
+                                                  ],
+                                                ),
                                               ),
-                                            ),
-                                            Icon(
-                                              folder.isExpanded
-                                                  ? Icons
-                                                      .keyboard_arrow_up_rounded
-                                                  : Icons
-                                                      .keyboard_arrow_down_rounded,
-                                              color: const Color(0xE6000000),
-                                            ),
-                                          ],
-                                        ),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                          children: [
-                                            IconButton(
-                                              onPressed: () {
-                                                _showEnrollStudentDialog(
-                                                    folder.id!);
-                                              },
-                                              icon: const Icon(
-                                                Icons.person,
-                                                color: Color(0xB3000000),
-                                                size: 20,
+                                              Icon(
+                                                folder.isExpanded
+                                                    ? Icons
+                                                        .keyboard_arrow_up_rounded
+                                                    : Icons
+                                                        .keyboard_arrow_down_rounded,
+                                                color:
+                                                    const Color(0xE6000000),
                                               ),
-                                            ),
-                                            Container(
-                                              width: 1,
-                                              height: 20,
-                                              color: const Color(0x1A000000),
-                                            ),
-                                            IconButton(
-                                              onPressed: () =>
-                                                  _showFolderDialog(
-                                                      folder: folder,
-                                                      isEdit: true),
-                                              icon: const Icon(
-                                                Icons.edit_rounded,
-                                                color: Color(0xFF1565C0),
-                                                size: 20,
+                                            ],
+                                          ),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              IconButton(
+                                                onPressed: () {
+                                                  _showEnrollStudentDialog(
+                                                      folder.id!);
+                                                },
+                                                icon: const Icon(
+                                                  Icons.person,
+                                                  color: Color(0xB3000000),
+                                                  size: 20,
+                                                ),
                                               ),
-                                            ),
-                                            Container(
-                                              width: 1,
-                                              height: 20,
-                                              color: const Color(0x1A000000),
-                                            ),
-                                            IconButton(
-                                              onPressed: () =>
-                                                  _showDeleteDialog(folder),
-                                              icon: const Icon(
-                                                Icons.delete_rounded,
-                                                color: Color(0xFFF84F31),
-                                                size: 20,
+                                              Container(
+                                                width: 1,
+                                                height: 20,
+                                                color:
+                                                    const Color(0x1A000000),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                              IconButton(
+                                                onPressed: () =>
+                                                    _showFolderDialog(
+                                                        folder: folder,
+                                                        isEdit: true),
+                                                icon: const Icon(
+                                                  Icons.edit_rounded,
+                                                  color: Color(0xFF1565C0),
+                                                  size: 20,
+                                                ),
+                                              ),
+                                              Container(
+                                                width: 1,
+                                                height: 20,
+                                                color:
+                                                    const Color(0x1A000000),
+                                              ),
+                                              IconButton(
+                                                onPressed: () =>
+                                                    _showDeleteDialog(folder),
+                                                icon: const Icon(
+                                                  Icons.delete_rounded,
+                                                  color: Color(0xFFF84F31),
+                                                  size: 20,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ),
+                                  )),
                                 if (folder.isExpanded)
                                   Padding(
                                     padding: const EdgeInsets.only(left: 0),
@@ -2011,21 +2358,50 @@ class _DashboardPageState extends State<DashboardPage> {
                                               borderRadius:
                                                   BorderRadius.circular(8),
                                             ),
-                                            child: TextButton.icon(
-                                              onPressed: () =>
-                                                  _showFileDialog(folder),
-                                              icon: const Icon(
-                                                  Icons.add_rounded,
-                                                  color: Color(0xFF1565C0),
-                                                  size: 18),
-                                              label: const Text(
-                                                "Add New Schedule Time",
-                                                style: TextStyle(
-                                                  color: Color(0xFF1565C0),
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
-                                            ),
+                                            child: (isFirstFolderTile
+                                                ? tourTarget(
+                                                    key: _tourAddScheduleKey,
+                                                    title: "Step 4 — Schedule time",
+                                                    description:
+                                                        "Create session times for this subject here.",
+                                                    child: TextButton.icon(
+                                                      onPressed: () =>
+                                                          _showFileDialog(
+                                                              folder),
+                                                      icon: const Icon(
+                                                          Icons.add_rounded,
+                                                          color:
+                                                              Color(0xFF1565C0),
+                                                          size: 18),
+                                                      label: const Text(
+                                                        "Add New Schedule Time",
+                                                        style: TextStyle(
+                                                          color: Color(
+                                                              0xFF1565C0),
+                                                          fontWeight:
+                                                              FontWeight.w500,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  )
+                                                : TextButton.icon(
+                                                    onPressed: () =>
+                                                        _showFileDialog(folder),
+                                                    icon: const Icon(
+                                                        Icons.add_rounded,
+                                                        color:
+                                                            Color(0xFF1565C0),
+                                                        size: 18),
+                                                    label: const Text(
+                                                      "Add New Schedule Time",
+                                                      style: TextStyle(
+                                                        color:
+                                                            Color(0xFF1565C0),
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  )),
                                           ),
                                         ),
                                         const SizedBox(height: 4),
@@ -2073,6 +2449,7 @@ class _DashboardPageState extends State<DashboardPage> {
           BottomNavigationBarItem(
               icon: Icon(Icons.settings_rounded), label: 'Settings'),
         ],
+      ),
       ),
     );
   }
