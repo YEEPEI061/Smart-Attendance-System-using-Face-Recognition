@@ -221,6 +221,34 @@ class _EnrollmentPageState extends State<EnrollmentPage> {
       return;
     }
 
+    // Detect if anything actually changed
+    final originalName = (widget.studentData!['name'] ?? '').toString().trim();
+    final originalCardId =
+        (widget.studentData!['student_card_id'] ?? '').toString().trim();
+    final originalCourseId =
+        widget.studentData!['course_id']?.toString();
+
+    final nameChanged =
+        nameController.text.trim() != originalName;
+    final idChanged =
+        idController.text.trim() != originalCardId;
+    final courseChanged = selectedCourseId != originalCourseId;
+    // New local image = any path that does NOT start with 'http'
+    final hasNewImages = imagePaths.any((p) => !p.startsWith('http'));
+
+    if (!nameChanged && !idChanged && !courseChanged && !hasNewImages) {
+      _showAnimatedDialog(
+        context: context,
+        icon: Icons.info_outline_rounded,
+        iconColor: const Color(0xFFEA324C),
+        title: "No Changes",
+        message: "You haven't made any changes.",
+        buttonText: "OK",
+        onPressed: () => Navigator.of(context).pop(),
+      );
+      return;
+    }
+
     try {
       _showLoadingDialog(context);
 

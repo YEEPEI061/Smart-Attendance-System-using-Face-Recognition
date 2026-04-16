@@ -154,13 +154,25 @@ def delete_student(student_id):
             if not result:
                 return jsonify({"error": "Face++ deletion failed"}), 500
 
-        # 🔹 3. Delete faces from DB
+        # 🔹 3. Delete attendance records (FK constraint)
+        cursor.execute("""
+            DELETE FROM attendance
+            WHERE student_id = %s
+        """, (student_id,))
+
+        # 🔹 4. Delete enrollments (FK constraint)
+        cursor.execute("""
+            DELETE FROM enrollments
+            WHERE student_id = %s
+        """, (student_id,))
+
+        # 🔹 5. Delete faces from DB
         cursor.execute("""
             DELETE FROM student_faces 
             WHERE student_id = %s
         """, (student_id,))
 
-        # 🔹 4. Delete student
+        # 🔹 6. Delete student
         cursor.execute("""
             DELETE FROM students 
             WHERE id = %s
