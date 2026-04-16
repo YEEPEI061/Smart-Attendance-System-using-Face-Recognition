@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
-from gmail_sender import send_email
+from brevo_sender import send_email
 
 forgot_password_bp = Blueprint('forgot_password', __name__)
 load_dotenv()

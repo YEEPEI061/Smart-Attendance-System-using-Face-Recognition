@@ -110,7 +110,7 @@ class HelpCenterPage extends StatelessWidget {
         ),
         _HelpItem(
           text:
-              'Enable or disable Guide mode to show/hide the step-by-step tour.',
+              'Enable or disable Guide mode to show / hide the step-by-step tour.',
           imageAsset: 'assets/images/help/settings_step3.png',
         ),
       ],
