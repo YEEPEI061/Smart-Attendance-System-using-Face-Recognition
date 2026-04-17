@@ -541,6 +541,8 @@ class _UpdateStudentPageState extends State<UpdateStudentPage> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.white,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.black),

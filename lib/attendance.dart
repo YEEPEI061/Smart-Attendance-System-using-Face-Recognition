@@ -649,6 +649,8 @@ class _AttendanceState extends State<Attendance> {
       appBar: AppBar(
         backgroundColor: const Color(0xFFFFFFFF),
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.white,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.black),
