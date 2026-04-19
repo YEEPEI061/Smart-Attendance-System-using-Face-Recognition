@@ -101,10 +101,37 @@ def delete_user():
             return jsonify({"message": "User not found"}), 404
         user_name = user_row["username"]
 
-        # Delete logs of the user first
+        # Delete in cascade order to satisfy all foreign key constraints:
+
+        # 1) attendance records tied to this lecturer's classes
+        cursor.execute("""
+            DELETE a FROM attendance a
+            JOIN classes c ON a.class_id = c.id
+            JOIN subjects s ON c.subject_id = s.id
+            WHERE s.lecturer_id = %s
+        """, (user_id_to_delete,))
+
+        # 2) classes tied to this lecturer's subjects
+        cursor.execute("""
+            DELETE c FROM classes c
+            JOIN subjects s ON c.subject_id = s.id
+            WHERE s.lecturer_id = %s
+        """, (user_id_to_delete,))
+
+        # 3) enrollments tied to this lecturer's subjects
+        cursor.execute("""
+            DELETE e FROM enrollments e
+            JOIN subjects s ON e.subject_id = s.id
+            WHERE s.lecturer_id = %s
+        """, (user_id_to_delete,))
+
+        # 4) subjects owned by this lecturer
+        cursor.execute("DELETE FROM subjects WHERE lecturer_id = %s", (user_id_to_delete,))
+
+        # 5) logs of the user
         cursor.execute("DELETE FROM logs WHERE user_id = %s", (user_id_to_delete,))
 
-        # Delete the user
+        # 6) finally delete the user
         cursor.execute("DELETE FROM users WHERE id = %s", (user_id_to_delete,))
         conn.commit()
 

@@ -57,6 +57,10 @@ class _DashboardPageState extends State<DashboardPage> {
   // tourWrapper awaits this so the tour only starts once targets are visible.
   final Completer<void> _dataLoaded = Completer<void>();
 
+  // Stored from the Builder inside AppBar so we have a valid descendant
+  // context of ShowCaseWidget for manually triggering the folder tour.
+  BuildContext? _showcaseBuilderCtx;
+
   List<Folder> folders = [];
   List<Folder> filteredFolders = [];
   bool isLoading = true;
@@ -756,6 +760,9 @@ class _DashboardPageState extends State<DashboardPage> {
           isLoading = false;
         });
         if (!_dataLoaded.isCompleted) _dataLoaded.complete();
+        // After the rebuild that renders the folders, check if the folder
+        // tour should auto-start (fires only once per user).
+        WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowFolderTour());
         log('Successfully fetched subjects: ${folders.length} items');
       } else {
         log('Error fetching subjects: ${response.statusCode}');
@@ -767,6 +774,46 @@ class _DashboardPageState extends State<DashboardPage> {
       setState(() => isLoading = false);
       if (!_dataLoaded.isCompleted) _dataLoaded.complete();
     }
+  }
+
+  /// Shows steps 3-7 (folder-specific tour) automatically the first time
+  /// a user has at least one group AND has already completed the main tour
+  /// (steps 1-2).  Uses a per-user SharedPreferences flag so it fires exactly
+  /// once per account.
+  Future<void> _maybeShowFolderTour() async {
+    if (!mounted || filteredFolders.isEmpty) return;
+
+    final userId = Provider.of<AuthProvider>(context, listen: false)
+        .userId
+        ?.toString();
+
+    final mainKey = userId != null && userId.isNotEmpty
+        ? 'seen_tour_dashboard_$userId'
+        : 'seen_tour_dashboard';
+    final folderKey = userId != null && userId.isNotEmpty
+        ? 'seen_tour_dashboard_folders_$userId'
+        : 'seen_tour_dashboard_folders';
+
+    final prefs = await SharedPreferences.getInstance();
+
+    // Only auto-start the folder tour after the main tour (steps 1-2) has
+    // already been seen, and the folder tour hasn't been shown yet.
+    if (!(prefs.getBool(mainKey) ?? false)) return;
+    if (prefs.getBool(folderKey) ?? false) return;
+
+    await prefs.setBool(folderKey, true);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _showcaseBuilderCtx != null) {
+        ShowCaseWidget.of(_showcaseBuilderCtx!).startShowCase([
+          _tourOpenGroupKey,
+          _tourAddScheduleKey,
+          _tourPersonIconKey,
+          _tourEditKey,
+          _tourDeleteKey,
+        ]);
+      }
+    });
   }
 
   Future<void> fetchFiles(Folder folder) async {
@@ -1592,14 +1639,15 @@ class _DashboardPageState extends State<DashboardPage> {
       statusBarIconBrightness: Brightness.dark,
     ));
 
+    final _tourUserId = Provider.of<AuthProvider>(context, listen: false)
+        .userId
+        ?.toString();
+
     return tourWrapper(
       pageId: 'dashboard',
-      /*// Only include keys that are ALWAYS rendered (search bar + add button).
-      // Folder-specific keys are shown via the manual Help icon when present.
-      autoStartKeys: [_tourSearchKey, _tourAddGroupKey],*/
-      
+      userId: _tourUserId,
       // After readyFuture completes the widget will have rebuilt with the
-      // populated filteredFolders list, so the full 6-key list will be used.
+      // populated filteredFolders list, so the full key list will be used.
       autoStartKeys: filteredFolders.isNotEmpty
           ? [
               _tourSearchKey,
@@ -1620,27 +1668,30 @@ class _DashboardPageState extends State<DashboardPage> {
           backgroundColor: Colors.white,
           actions: [
             Builder(
-              builder: (innerCtx) => IconButton(
-                icon: const Icon(
-                  Icons.help_outline_rounded,
-                  color: Color(0xFF9E9E9E),
-                ),
-                tooltip: 'Show Guide',
-                onPressed: () {
-                  final keys = filteredFolders.isNotEmpty
-                      ? [
-                          _tourSearchKey,
-                          _tourAddGroupKey,
-                          _tourOpenGroupKey,
-                          _tourAddScheduleKey,
-                          _tourPersonIconKey,
-                          _tourEditKey,
-                          _tourDeleteKey,
-                        ]
-                      : [_tourSearchKey, _tourAddGroupKey];
-                  ShowCaseWidget.of(innerCtx).startShowCase(keys);
-                },
-              ),
+              builder: (innerCtx) {
+                _showcaseBuilderCtx = innerCtx;
+                return IconButton(
+                  icon: const Icon(
+                    Icons.help_outline_rounded,
+                    color: Color(0xFF9E9E9E),
+                  ),
+                  tooltip: 'Show Guide',
+                  onPressed: () {
+                    final keys = filteredFolders.isNotEmpty
+                        ? [
+                            _tourSearchKey,
+                            _tourAddGroupKey,
+                            _tourOpenGroupKey,
+                            _tourAddScheduleKey,
+                            _tourPersonIconKey,
+                            _tourEditKey,
+                            _tourDeleteKey,
+                          ]
+                        : [_tourSearchKey, _tourAddGroupKey];
+                    ShowCaseWidget.of(innerCtx).startShowCase(keys);
+                  },
+                );
+              },
             ),
           ],
         ),

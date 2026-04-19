@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -5,12 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 // ─── Public helpers ────────────────────────────────────────────────────────────
 
 class AppTour {
-  /// Shows a styled "Don't show again?" dialog matching the app design.
-  /// If the user confirms, guide_mode is turned off in SharedPreferences.
-  static Future<void> showDontShowAgainDialog(BuildContext context) async {
+  /// Shows a "Tour complete!" dialog with only a "Got it!" button.
+  /// The user can replay the tour anytime via the ? icon.
+  static Future<void> showTourCompleteDialog(BuildContext context) async {
     if (!context.mounted) return;
     await Future<void>.delayed(const Duration(milliseconds: 150));
     if (!context.mounted) return;
+
     await showDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -57,9 +59,7 @@ class AppTour {
                     height: 1.5,
                   ),
                   children: [
-                    TextSpan(
-                      text: 'Hide this guide on future visits?\nYou can replay it anytime with the ',
-                    ),
+                    TextSpan(text: 'You can replay this tour anytime using the '),
                     WidgetSpan(
                       alignment: PlaceholderAlignment.middle,
                       child: Icon(
@@ -68,14 +68,12 @@ class AppTour {
                         color: Color(0xFF9E9E9E),
                       ),
                     ),
-                    TextSpan(
-                      text: ' icon.',
-                    ),
+                    TextSpan(text: ' icon.'),
                   ],
                 ),
               ),
               const SizedBox(height: 22),
-              // Primary button — full width blue "Got it!"
+              // Got it button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -93,25 +91,6 @@ class AppTour {
                           fontSize: 15, fontWeight: FontWeight.w600)),
                 ),
               ),
-              const SizedBox(height: 10),
-              // Secondary — small underlined "Don't show again"
-              GestureDetector(
-                onTap: () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.setBool('guide_mode', false);
-                  if (ctx.mounted) Navigator.of(ctx).pop();
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    "Don't show again",
-                    style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black38,
-                        decoration: TextDecoration.underline),
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -119,7 +98,7 @@ class AppTour {
     );
   }
 
-  /// Legacy stub — auto-start is handled inside [tourWrapper].
+  /// Legacy stub kept for backward compatibility.
   static Future<void> maybeAutoStart(
     BuildContext context, {
     required String pageId,
@@ -129,11 +108,17 @@ class AppTour {
 
 /// Wraps [child] in a [ShowCaseWidget].
 ///
-/// - [pageId] + [autoStartKeys]: auto-start every visit when guide_mode is ON.
-/// - [readyFuture]: auto-start waits for this future before firing.
-/// - After the tour finishes, a "Don't show again?" dialog is offered.
+/// - [pageId] is combined with [userId] to form a per-user seen key:
+///   `seen_tour_<pageId>_<userId>`.  This means a new user on the same
+///   device always gets the tour on their first login.
+/// - Auto-starts when the per-user seen key is not yet set.
+/// - [readyFuture]: waits for this future then one extra frame so all
+///   Showcase targets are registered before the tour fires.
+/// - When the tour finishes the seen flag is saved silently and a
+///   "Tour complete!" dialog (Got it only) is shown.
 Widget tourWrapper({
   String? pageId,
+  String? userId,
   List<GlobalKey>? autoStartKeys,
   Future<void>? readyFuture,
   VoidCallback? onFinish,
@@ -141,6 +126,7 @@ Widget tourWrapper({
 }) {
   return _TourWrapper(
     pageId: pageId,
+    userId: userId,
     autoStartKeys: autoStartKeys,
     readyFuture: readyFuture,
     onFinish: onFinish,
@@ -148,8 +134,7 @@ Widget tourWrapper({
   );
 }
 
-/// Returns a styled help icon for use in AppBar.actions.
-/// Looks like a blue circle with a white ? inside.
+/// Styled help icon for AppBar.actions — blue circle with white ?.
 Widget tourHelpIcon({required VoidCallback onPressed}) {
   return Padding(
     padding: const EdgeInsets.only(right: 8),
@@ -206,6 +191,7 @@ Widget tourTarget({
 
 class _TourWrapper extends StatefulWidget {
   final String? pageId;
+  final String? userId;
   final List<GlobalKey>? autoStartKeys;
   final Future<void>? readyFuture;
   final VoidCallback? onFinish;
@@ -213,6 +199,7 @@ class _TourWrapper extends StatefulWidget {
 
   const _TourWrapper({
     this.pageId,
+    this.userId,
     this.autoStartKeys,
     this.readyFuture,
     this.onFinish,
@@ -226,35 +213,77 @@ class _TourWrapper extends StatefulWidget {
 class _TourWrapperState extends State<_TourWrapper> {
   bool _autoStartScheduled = false;
 
+  // Set by the Builder INSIDE ShowCaseWidget.builder so it is a true
+  // DESCENDANT context of ShowCaseWidget. ShowCaseWidget.of() uses
+  // findAncestorStateOfType which requires a descendant — using the
+  // ShowCaseWidget's own builder context directly does NOT work.
+  BuildContext? _showcaseCtx;
+
+  /// Per-user seen key: seen_tour_<pageId>_<userId>
+  /// Falls back to seen_tour_<pageId> if userId is not available.
+  String get _seenKey {
+    final page = widget.pageId ?? '';
+    final uid = widget.userId;
+    return uid != null && uid.isNotEmpty
+        ? 'seen_tour_${page}_$uid'
+        : 'seen_tour_$page';
+  }
+
   @override
   Widget build(BuildContext context) {
     return ShowCaseWidget(
       onFinish: () {
         if (widget.pageId != null) {
+          // Save seen flag immediately so the tour never auto-starts again.
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setBool(_seenKey, true);
+          });
+
+          // Show "Tour complete!" dialog.
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) AppTour.showDontShowAgainDialog(context);
+            if (mounted) AppTour.showTourCompleteDialog(context);
           });
         }
         widget.onFinish?.call();
       },
       builder: (BuildContext innerCtx) {
+        // Schedule auto-start once per State lifetime.
         if (!_autoStartScheduled &&
             widget.pageId != null &&
             widget.autoStartKeys != null) {
           _autoStartScheduled = true;
+
           WidgetsBinding.instance.addPostFrameCallback((_) async {
+            // Wait for data (e.g. folders) to finish loading.
             if (widget.readyFuture != null) await widget.readyFuture;
-            // Short delay so targets are rendered before the tour starts.
-            await Future<void>.delayed(const Duration(milliseconds: 200));
+
+            // Wait one more frame so every Showcase target is rendered
+            // and registered with ShowCaseWidget before starting.
+            final frameReady = Completer<void>();
+            WidgetsBinding.instance
+                .addPostFrameCallback((_) => frameReady.complete());
+            await frameReady.future;
+
+            if (!mounted || _showcaseCtx == null) return;
+
             final prefs = await SharedPreferences.getInstance();
-            final bool guide = prefs.getBool('guide_mode') ?? true;
-            if (guide && mounted) {
-              ShowCaseWidget.of(innerCtx)
+            final bool seen = prefs.getBool(_seenKey) ?? false;
+
+            if (!seen && mounted && _showcaseCtx != null) {
+              ShowCaseWidget.of(_showcaseCtx!)
                   .startShowCase(widget.autoStartKeys!);
             }
           });
         }
-        return widget.child;
+
+        // Wrap child in Builder so _showcaseCtx is a TRUE DESCENDANT of
+        // ShowCaseWidget. This is required for ShowCaseWidget.of() to work —
+        // it traverses up the tree looking for ShowCaseWidget as an ancestor,
+        // so the context must be BELOW ShowCaseWidget in the element tree.
+        return Builder(builder: (BuildContext descendantCtx) {
+          _showcaseCtx = descendantCtx; // updated every rebuild
+          return widget.child;
+        });
       },
     );
   }

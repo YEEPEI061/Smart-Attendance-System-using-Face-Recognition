@@ -9,6 +9,8 @@ import 'dart:convert';
 import 'package:userinterface/attendance.dart';
 import 'package:userinterface/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:userinterface/providers/auth_provider.dart';
 
 class ScanAttendance extends StatefulWidget {
   final int classId;
@@ -92,9 +94,20 @@ class _ScanAttendanceState extends State<ScanAttendance> {
   }
 
   Future<void> _maybeShowCameraGuide() async {
+    final userId = Provider.of<AuthProvider>(context, listen: false)
+        .userId
+        ?.toString();
+    final seenKey = userId != null && userId.isNotEmpty
+        ? 'seen_camera_guide_scan_$userId'
+        : 'seen_camera_guide_scan';
+
     final prefs = await SharedPreferences.getInstance();
-    final bool guide = prefs.getBool('guide_mode') ?? true;
-    if (!guide || !mounted) return;
+    final bool seen = prefs.getBool(seenKey) ?? false;
+    if (seen || !mounted) return;
+
+    // Mark as seen before showing so this guide appears exactly once
+    // regardless of how the dialog is dismissed.
+    await prefs.setBool(seenKey, true);
 
     await Future.delayed(const Duration(milliseconds: 150));
 
@@ -115,7 +128,7 @@ class _ScanAttendanceState extends State<ScanAttendance> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              /// ICON (same style as tour complete)
+              /// ICON
               Container(
                 width: 56,
                 height: 56,
@@ -160,7 +173,7 @@ class _ScanAttendanceState extends State<ScanAttendance> {
 
               const SizedBox(height: 20),
 
-              /// PRIMARY BUTTON (FULL WIDTH)
+              /// GOT IT BUTTON
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -179,27 +192,6 @@ class _ScanAttendanceState extends State<ScanAttendance> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 10),
-
-              /// DON'T SHOW AGAIN (BELOW BUTTON ✅)
-              GestureDetector(
-                onTap: () async {
-                  await prefs.setBool('guide_mode', false);
-                  if (ctx.mounted) Navigator.of(ctx).pop();
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    "Don't show again",
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black38,
-                      decoration: TextDecoration.underline,
                     ),
                   ),
                 ),

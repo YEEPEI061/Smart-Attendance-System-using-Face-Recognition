@@ -15,7 +15,6 @@ import 'package:userinterface/services/notification_service.dart';
 import 'package:userinterface/services/attendance_reminder_sync.dart';
 // import 'package:showcaseview/showcaseview.dart'; // tour disabled
 // import 'package:userinterface/help/app_tour.dart'; // tour disabled
-import 'package:userinterface/help/guide_prefs.dart';
 import 'package:userinterface/help/help_center.dart';
 
 class AccountSettingsPage extends StatefulWidget {
@@ -34,7 +33,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
   final GlobalKey _tourSignOutKey = GlobalKey();*/
 
   bool attendanceReminders = true;
-  bool guideMode = true;
   String? _profileImageUrl;
   // bool _isProfileLoading = true;
   late TextEditingController _usernameController;
@@ -52,7 +50,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
     
     // Load preference & automatically sync with Database
     _loadAndSyncReminders();
-    _loadGuideMode();
   }
 
   Future<void> _loadAndSyncReminders() async {
@@ -67,12 +64,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
       // Once open settings send notification 
       //await _setupAttendanceReminder();
     }
-  }
-
-  Future<void> _loadGuideMode() async {
-    final enabled = await GuidePrefs.isGuideModeEnabled();
-    if (!mounted) return;
-    setState(() => guideMode = enabled);
   }
 
   Future<void> _setupAttendanceReminder() async {
@@ -637,32 +628,6 @@ class _AccountSettingsPageState extends State<AccountSettingsPage> {
                           ),
                       ],
                     ), // Row — reminders
-                    const SizedBox(height: 5),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text("Guide Mode"),
-                        Transform.scale(
-                          scale: 0.8,
-                          child: Switch(
-                            value: guideMode,
-                            activeThumbColor: const Color(0xFF1565C0),
-                            activeTrackColor: const Color(0x331565C0),
-                            inactiveThumbColor: Colors.grey.shade400,
-                            inactiveTrackColor: Colors.grey.shade300,
-                            splashRadius: 0,
-                            trackOutlineColor:
-                                WidgetStateProperty.all(Colors.transparent),
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            onChanged: (value) async {
-                              setState(() => guideMode = value);
-                              await GuidePrefs.setGuideModeEnabled(value);
-                            },
-                          ),
-                        ),
-                      ],
-                    ), // Row — Guide Mode
                     const SizedBox(height: 8),
                     SizedBox(
                       width: double.infinity,

@@ -533,6 +533,8 @@ class _AttendanceReportPageState extends State<AttendanceReportPage> {
             automaticallyImplyLeading: false,
             backgroundColor: const Color(0xFFFFFFFF),
             elevation: 0,
+            scrolledUnderElevation: 0,
+            surfaceTintColor: Colors.white,
             centerTitle: false,
             iconTheme: const IconThemeData(color: Colors.black),
           ),
